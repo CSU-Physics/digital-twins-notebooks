@@ -1,0 +1,8 @@
+*solutions*
+*SOLUTION*
+*answer-key*
+.ipynb_checkpoints/
+__pycache__/
+.DS_Store
+dist/
+.jupyterlite.doit.db
