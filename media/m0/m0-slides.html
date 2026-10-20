@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module 0 Slides: Start Here, Python on a Furnace Log</title>
+<style>
+  :root { --maroon:#99004C; --ink:#24313D; --muted:#6A626B; --line:#E4DCE0; --tint:#F8F4F6; --gold:#C9A227; --ok:#2E7D4F; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:#2B2230; font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color:var(--ink); }
+  #viewport { position:absolute; inset:0 0 44px 0; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  #stage { width:1280px; height:720px; flex-shrink:0; position:relative; transform-origin:center center; }
+  .slide { position:absolute; inset:0; background:#fff; padding:56px 72px 64px; display:none; flex-direction:column; border-top:10px solid var(--maroon); }
+  .slide.on { display:flex; }
+  .slide h1 { font-family: Georgia, serif; color:var(--maroon); font-size:56px; margin:0 0 18px; line-height:1.1; }
+  .slide h2 { font-family: Georgia, serif; color:var(--maroon); font-size:40px; margin:0 0 22px; line-height:1.15; }
+  .slide p, .slide li { font-size:27px; line-height:1.45; margin:0 0 14px; }
+  .slide ul { margin:0 0 10px 0; padding-left:34px; }
+  .kicker { font-size:20px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+  .eq { background:var(--tint); border-left:6px solid var(--maroon); padding:16px 24px; font-size:34px; margin:10px 0 18px; font-family: Georgia, serif; }
+  .small { font-size:20px !important; color:var(--muted); }
+  .cols { display:flex; gap:40px; align-items:flex-start; flex:1; }
+  .cols > div { flex:1; }
+  .card { border:2px solid var(--line); border-radius:10px; padding:18px 22px; }
+  .card h3 { margin:0 0 8px; font-size:27px; color:var(--maroon); }
+  .card p { font-size:23px; margin:0; }
+  table { border-collapse:collapse; font-size:26px; }
+  th, td { border:1px solid var(--line); padding:10px 18px; text-align:left; }
+  th { background:var(--tint); }
+  .foot { position:absolute; left:72px; right:72px; bottom:20px; display:flex; justify-content:space-between; font-size:15px; color:var(--muted); }
+  .reveal { margin-top:10px; }
+  .reveal button { font-size:22px; padding:8px 18px; border:2px solid var(--maroon); background:#fff; color:var(--maroon); border-radius:6px; cursor:pointer; }
+  .reveal .ans { display:none; margin-top:14px; background:#EEF6F0; border-left:6px solid var(--ok); padding:12px 20px; font-size:25px; line-height:1.45; }
+  .reveal.open .ans { display:block; }
+  .reveal.open button { display:none; }
+  .title-slide { background: linear-gradient(135deg, #fff 0%, #fff 58%, var(--tint) 58%); }
+  #bar { position:absolute; left:0; right:0; bottom:0; height:44px; background:#1E1722; display:flex; align-items:center; justify-content:center; gap:10px; color:#fff; font-size:14px; }
+  #bar button { background:#3A2F40; color:#fff; border:0; border-radius:4px; padding:7px 14px; font-size:14px; cursor:pointer; }
+  #bar button:hover { background:var(--maroon); }
+  #count { min-width:70px; text-align:center; }
+  svg text { font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  @media print {
+    @page { size: 1280px 720px; margin:0; }
+    html, body { background:#fff; height:auto; }
+    #bar { display:none; }
+    #viewport { position:static; display:block; }
+    #stage { transform:none !important; width:1280px; height:auto; }
+    .slide { display:flex !important; position:relative; width:1280px; height:720px; page-break-after:always; break-after:page; }
+    .reveal .ans { display:block !important; }
+    .reveal button { display:none !important; }
+  }
+  .code { font-family: Consolas, "Courier New", monospace; font-size:21px; line-height:1.4; background:var(--tint); border-left:6px solid var(--ink); padding:14px 18px; margin:0 0 12px; white-space:pre; overflow:hidden; }
+  code { font-family: Consolas, "Courier New", monospace; font-size:0.92em; }
+</style>
+</head>
+<body>
+<div id="viewport"><div id="stage">
+
+
+<!-- 1 -->
+<section class="slide title-slide">
+  <div class="kicker">Digital Twins for Semiconductor Manufacturing · Module 0</div>
+  <h1>Start here: Python on a furnace log</h1>
+  <p style="font-size:30px;max-width:820px">How the course works, and the notebook, NumPy and pandas skills that every later lab uses.</p>
+  <div style="margin-top:14px"><svg width="620" height="230" viewBox="0 0 620 230" role="img" aria-label="Zone temperature of the example furnace run against time: a warm-up from 800 to 1000 degrees C, then a hold near 1000"><line x1="20" y1="23.9" x2="610" y2="23.9" stroke="#6A626B" stroke-dasharray="7 6" stroke-width="2"/><path d="M20.0 201.8 L23.3 190.2 L26.6 179.3 L29.8 168.8 L33.1 160.2 L36.4 151.2 L39.7 143.3 L42.9 135.4 L46.2 128.3 L49.5 121.2 L52.8 115.3 L56.1 109.6 L59.3 104.4 L62.6 98.5 L65.9 94.0 L69.2 89.3 L72.4 85.6 L75.7 81.9 L79.0 77.6 L82.3 74.3 L85.6 71.2 L88.8 67.3 L92.1 65.6 L95.4 62.8 L98.7 60.5 L101.9 58.0 L105.2 55.4 L108.5 53.7 L111.8 51.3 L115.1 49.7 L118.3 47.3 L121.6 46.9 L124.9 45.5 L128.2 44.0 L131.4 43.1 L134.7 41.4 L138.0 40.9 M147.8 37.3 L151.1 36.5 L154.4 36.1 L157.7 35.3 L160.9 34.1 L164.2 33.9 L167.5 33.0 L170.8 32.6 L174.1 32.2 L177.3 31.0 L180.6 30.7 L183.9 30.3 L187.2 30.5 L190.4 29.6 L193.7 29.4 L197.0 28.5 L200.3 29.3 L203.6 28.4 L206.8 27.7 L210.1 28.2 L213.4 27.7 L216.7 27.0 L219.9 27.4 L223.2 26.6 L226.5 27.4 L229.8 27.0 L233.1 26.9 L236.3 26.0 L239.6 26.9 L242.9 26.0 L246.2 26.2 L249.4 25.7 L252.7 25.4 L256.0 25.5 L259.3 25.3 L262.6 25.3 L265.8 24.9 L269.1 25.7 L272.4 25.1 L275.7 25.0 L278.9 24.7 L282.2 25.2 L285.5 24.9 L288.8 24.9 L292.1 24.6 L295.3 24.8 L298.6 24.9 L301.9 24.5 L305.2 24.7 L308.4 24.5 L311.7 24.4 L315.0 24.9 L318.3 24.0 L321.6 24.7 L324.8 24.6 L328.1 24.4 L331.4 25.0 L334.7 24.3 L337.9 24.9 L341.2 24.9 L344.5 24.9 L347.8 24.2 L351.1 24.8 L354.3 24.4 L357.6 24.5 L360.9 23.4 L364.2 24.2 L367.4 25.1 L370.7 24.7 L374.0 24.0 L377.3 24.0 L380.6 25.4 L383.8 24.1 M390.4 24.4 L393.7 24.1 L396.9 24.5 L400.2 24.7 L403.5 24.0 L406.8 24.3 L410.1 24.6 L413.3 24.9 L416.6 24.9 L419.9 24.1 L423.2 24.1 L426.4 24.1 L429.7 24.2 L433.0 24.4 L436.3 23.9 L439.6 24.4 L442.8 23.9 L446.1 24.3 L449.4 24.9 L452.7 24.4 L455.9 24.3 L459.2 24.6 L462.5 24.0 L465.8 24.2 L469.1 24.5 L472.3 24.3 L475.6 24.3 L478.9 24.5 L482.2 24.7 L485.4 24.3 L488.7 23.9 L492.0 24.5 L495.3 24.4 L498.6 24.7 L501.8 24.3 L505.1 24.4 L508.4 24.3 L511.7 23.7 L514.9 24.2 L518.2 24.3 L521.5 24.3 L524.8 24.4 L528.1 24.2 L531.3 24.4 L534.6 24.2 L537.9 23.6 L541.2 24.5 L544.4 24.1 L547.7 23.7 L551.0 24.0 L554.3 24.7 L557.6 23.0 L560.8 23.8 L564.1 24.2 L567.4 24.7 L570.7 24.2 M577.2 23.8 L580.5 24.4 L583.8 24.9 L587.1 24.5 L590.3 23.8 L593.6 24.4 L596.9 24.1 L600.2 24.8 L603.4 23.9 L606.7 23.3 L610.0 24.4" fill="none" stroke="#24313D" stroke-width="3"/></svg></div>
+  <p class="small" style="margin-top:4px">A simulated furnace run: the zone warms from 800 °C and holds near 1000 °C.</p>
+  <div class="foot"><span>SemiAcademy · ISEP-CSU</span><span>CC BY 4.0</span></div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <h2>By the end of this module you can</h2>
+  <ul>
+    <li>run a <strong>browser notebook</strong>, keep a copy of your work and recover from an error;</li>
+    <li>summarize readings with a mean and a <strong>sample standard deviation</strong>, leaving missing values out;</li>
+    <li>load a furnace log into a <strong>pandas</strong> table, select rows and plot the run with units;</li>
+    <li>smooth readings with a <strong>moving average</strong>, and find and fix a bug in a function.</li>
+  </ul>
+  <p class="small" style="margin-top:24px">These are the entry skills for Modules 1 to 7. The readiness check shows which ones you already have; the optional prep pack covers any you miss.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>2</span></div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <h2>Eight modules, one furnace twin</h2>
+  <table style="font-size:21px;width:100%">
+    <tr><th style="width:110px;text-align:center">Module</th><th>Topic</th><th style="width:120px;text-align:right">Hours</th></tr>
+    <tr><td style="text-align:center">0</td><td>Orientation, readiness check and Python warm-up</td><td style="text-align:right">1.75</td></tr><tr><td style="text-align:center">1</td><td>What a digital twin is</td><td style="text-align:right">2.5</td></tr><tr><td style="text-align:center">2</td><td>The fab as a data system</td><td style="text-align:right">3</td></tr><tr><td style="text-align:center">3</td><td>Physics model: thermal oxidation</td><td style="text-align:right">3</td></tr><tr><td style="text-align:center">4</td><td>Virtual metrology for oxide thickness</td><td style="text-align:right">3</td></tr><tr><td style="text-align:center">5</td><td>Keeping the twin in sync</td><td style="text-align:right">3</td></tr><tr><td style="text-align:center">6</td><td>Toolset twin: queues and maintenance</td><td style="text-align:right">3</td></tr><tr><td style="text-align:center">7</td><td>Capstone: integrate, validate and document</td><td style="text-align:right">3.5</td></tr>
+    <tr><td></td><td><strong>Total</strong></td><td style="text-align:right"><strong>22.75</strong></td></tr>
+  </table>
+  <p class="small" style="margin-top:12px">Modules 1 to 5 build the twin of one furnace layer by layer; Module 6 places the furnace in a three-tool line; Module 7 joins the pieces.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>3</span></div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <h2>How the course and the badge work</h2>
+  <div class="cols">
+    <div class="card"><h3>Each module</h3><p>Slides, short sections with Watch and Try it panels, a browser lab, a lab check (10 points) and, from Module 1 on, a quiz (20 points).</p></div>
+    <div class="card"><h3>Unlocking</h3><p>The Module 0 lab check at 8/10 opens Module 1. In Modules 1 to 6, the lab check at 8/10 and the quiz at 16/20 open the next module.</p></div>
+    <div class="card"><h3>The badge</h3><p>At least 207 of 230 points, every minimum met, and the post-course survey submitted.</p></div>
+  </div>
+  <p class="small">Every graded item is marked automatically in Canvas. Attempts are unlimited and your highest score counts.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>4</span></div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <h2>One furnace for the whole course</h2>
+  <div class="cols">
+    <div style="flex:0 0 560px"><svg width="560" height="330" viewBox="0 0 560 330" role="img" aria-label="Sketch of a horizontal tube furnace with three heater zones, a quartz tube, a boat of wafers and a thermocouple"><rect x="40" y="60" width="480" height="170" rx="16" fill="#F8F4F6" stroke="#24313D" stroke-width="3"/><rect x="60" y="70" width="140" height="26" rx="4" fill="#F1E3EA" stroke="#99004C" stroke-width="2"/><rect x="60" y="194" width="140" height="26" rx="4" fill="#F1E3EA" stroke="#99004C" stroke-width="2"/><text x="130.0" y="90.0" font-size="18" fill="#99004C" text-anchor="middle" font-weight="400">zone 1</text><rect x="210" y="70" width="140" height="26" rx="4" fill="#F1E3EA" stroke="#99004C" stroke-width="2"/><rect x="210" y="194" width="140" height="26" rx="4" fill="#F1E3EA" stroke="#99004C" stroke-width="2"/><text x="280.0" y="90.0" font-size="18" fill="#99004C" text-anchor="middle" font-weight="400">zone 2</text><rect x="360" y="70" width="140" height="26" rx="4" fill="#F1E3EA" stroke="#99004C" stroke-width="2"/><rect x="360" y="194" width="140" height="26" rx="4" fill="#F1E3EA" stroke="#99004C" stroke-width="2"/><text x="430.0" y="90.0" font-size="18" fill="#99004C" text-anchor="middle" font-weight="400">zone 3</text><rect x="20" y="108" width="520" height="74" rx="37" fill="#FFFFFF" stroke="#6A626B" stroke-width="3"/><rect x="170" y="166" width="220" height="10" fill="#24313D"/><line x1="182" y1="120" x2="182" y2="166" stroke="#24313D" stroke-width="5"/><line x1="198" y1="120" x2="198" y2="166" stroke="#24313D" stroke-width="5"/><line x1="214" y1="120" x2="214" y2="166" stroke="#24313D" stroke-width="5"/><line x1="230" y1="120" x2="230" y2="166" stroke="#24313D" stroke-width="5"/><line x1="246" y1="120" x2="246" y2="166" stroke="#24313D" stroke-width="5"/><line x1="262" y1="120" x2="262" y2="166" stroke="#24313D" stroke-width="5"/><line x1="278" y1="120" x2="278" y2="166" stroke="#24313D" stroke-width="5"/><line x1="294" y1="120" x2="294" y2="166" stroke="#24313D" stroke-width="5"/><line x1="310" y1="120" x2="310" y2="166" stroke="#24313D" stroke-width="5"/><line x1="326" y1="120" x2="326" y2="166" stroke="#24313D" stroke-width="5"/><line x1="342" y1="120" x2="342" y2="166" stroke="#24313D" stroke-width="5"/><line x1="358" y1="120" x2="358" y2="166" stroke="#24313D" stroke-width="5"/><line x1="374" y1="120" x2="374" y2="166" stroke="#24313D" stroke-width="5"/><line x1="540" y1="140" x2="300" y2="140" stroke="#99004C" stroke-width="4"/><circle cx="300" cy="140" r="7" fill="#99004C"/><text x="280.0" y="270.0" font-size="20" fill="#24313D" text-anchor="middle" font-weight="400">quartz tube with a boat of silicon wafers</text><text x="280.0" y="300.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">heater zones above and below</text><text x="480.0" y="40.0" font-size="20" fill="#99004C" text-anchor="middle" font-weight="600">thermocouple</text><line x1="480" y1="48" x2="470" y2="134" stroke="#99004C" stroke-width="2"/></svg></div>
+    <div>
+      <p><strong>Thermal oxidation</strong> grows a silicon dioxide layer on silicon wafers at about 800 to 1200 °C.</p>
+      <p>A <strong>thermocouple</strong> reports each zone's temperature every few seconds.</p>
+      <p>The course furnace is <strong>simulated</strong>: you get your own data, and every result can be checked.</p>
+    </div>
+  </div>
+  <p class="small">Module 0 uses one zone-temperature log. Later modules add oxide growth, metrology, drift and a three-tool line.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>5</span></div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <h2>What a twin needs from data</h2>
+  <div style="margin-top:10px"><svg width="1130" height="260" viewBox="0 0 1130 260" role="img" aria-label="Readings arrive, are cleaned, summarized, compared with a model, and lead to a decision"><defs><marker id="ah6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#6A626B"/></marker></defs><rect x="6" y="40" width="190" height="130" rx="10" fill="#FBF3F7" stroke="#99004C" stroke-width="2.5"/><text x="101.0" y="78.0" font-size="23" fill="#24313D" text-anchor="middle" font-weight="600">Readings arrive</text><text x="101.0" y="108.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">a tool sends</text><text x="101.0" y="134.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">a stream of values</text><line x1="200" y1="105" x2="232" y2="105" stroke="#6A626B" stroke-width="3" marker-end="url(#ah6)"/><rect x="236" y="40" width="190" height="130" rx="10" fill="#FBF3F7" stroke="#99004C" stroke-width="2.5"/><text x="331.0" y="78.0" font-size="23" fill="#24313D" text-anchor="middle" font-weight="600">Clean</text><text x="331.0" y="108.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">missing values,</text><text x="331.0" y="134.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">units, time stamps</text><line x1="430" y1="105" x2="462" y2="105" stroke="#6A626B" stroke-width="3" marker-end="url(#ah6)"/><rect x="466" y="40" width="190" height="130" rx="10" fill="#FBF3F7" stroke="#99004C" stroke-width="2.5"/><text x="561.0" y="78.0" font-size="23" fill="#24313D" text-anchor="middle" font-weight="600">Summarize</text><text x="561.0" y="108.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">mean, SD,</text><text x="561.0" y="134.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">smoothing, plots</text><line x1="660" y1="105" x2="692" y2="105" stroke="#6A626B" stroke-width="3" marker-end="url(#ah6)"/><rect x="696" y="40" width="190" height="130" rx="10" fill="#FFFFFF" stroke="#E4DCE0" stroke-width="2.5"/><text x="791.0" y="78.0" font-size="23" fill="#24313D" text-anchor="middle" font-weight="600">Compare</text><text x="791.0" y="108.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">with a model of</text><text x="791.0" y="134.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">the process</text><line x1="890" y1="105" x2="922" y2="105" stroke="#6A626B" stroke-width="3" marker-end="url(#ah6)"/><rect x="926" y="40" width="190" height="130" rx="10" fill="#FFFFFF" stroke="#E4DCE0" stroke-width="2.5"/><text x="1021.0" y="78.0" font-size="23" fill="#24313D" text-anchor="middle" font-weight="600">Decide</text><text x="1021.0" y="108.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">a person or a</text><text x="1021.0" y="134.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">controller acts</text><line x1="6" y1="200" x2="656" y2="200" stroke="#99004C" stroke-width="3"/><text x="331.0" y="232.0" font-size="21" fill="#99004C" text-anchor="middle" font-weight="600">Module 0: by hand, on one furnace log</text><line x1="696" y1="200" x2="1124" y2="200" stroke="#6A626B" stroke-width="3"/><text x="906.0" y="232.0" font-size="21" fill="#6A626B" text-anchor="middle" font-weight="600">Modules 1 to 7</text></svg></div>
+  <p style="margin-top:26px">A twin is only as good as the data that reach it. Module 0 practises the first three steps by hand; the rest of the course adds the model and the decision.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>6</span></div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <h2>Notebooks in your browser</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><strong>JupyterLite</strong> runs Python inside your browser: nothing to install, no account.</li>
+        <li>The first start can take up to a minute.</li>
+        <li>Run the cells <strong>in order</strong> with Shift + Enter.</li>
+        <li>Each notebook shows its version near the top.</li>
+      </ul>
+    </div>
+    <div class="card"><h3>If something goes wrong</h3>
+      <p style="margin-bottom:10px">A cell fails: read the <strong>last line</strong> of the error first.</p>
+      <p style="margin-bottom:10px">Strange results: Kernel &gt; Restart Kernel and Run All Cells.</p>
+      <p>Keep a copy: File &gt; Download. Clearing your browser's site data deletes work saved in the browser.</p></div>
+  </div>
+  <p class="small">The Set Up Your Tools page in Canvas covers browsers, saving your work and an optional Google Colab copy of each lab.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>7</span></div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <h2>NumPy arrays and the standard deviation</h2>
+  <div class="cols">
+    <div style="flex:0 0 540px">
+<pre class="code">readings = np.array([999.6, 1000.4, 1000.1,
+    999.8, 1000.3, 999.9, 1000.2, 999.7])
+readings[0]           # 999.6
+readings + 273.15     # every element
+readings.mean()       # 1000.0
+readings.std(ddof=1)  # 0.293  sample
+readings.std()        # 0.274  population</pre>
+    </div>
+    <div><svg width="500" height="250" viewBox="0 0 500 250" role="img" aria-label="The eight readings as dots, the mean at 1000.0 and a band one standard deviation wide on each side"><rect x="142.7" y="40" width="214.7" height="110" fill="#F1E3EA"/><line x1="30" y1="150" x2="470" y2="150" stroke="#24313D" stroke-width="2"/><line x1="66.7" y1="150" x2="66.7" y2="158" stroke="#24313D" stroke-width="2"/><text x="66.7" y="184.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">999.5</text><line x1="250.0" y1="150" x2="250.0" y2="158" stroke="#24313D" stroke-width="2"/><text x="250.0" y="184.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">1000.0</text><line x1="433.3" y1="150" x2="433.3" y2="158" stroke="#24313D" stroke-width="2"/><text x="433.3" y="184.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">1000.5</text><line x1="250.0" y1="34" x2="250.0" y2="150" stroke="#99004C" stroke-width="3"/><circle cx="103.3" cy="124" r="9" fill="#24313D"/><circle cx="396.7" cy="102" r="9" fill="#24313D"/><circle cx="286.7" cy="80" r="9" fill="#24313D"/><circle cx="176.7" cy="124" r="9" fill="#24313D"/><circle cx="360.0" cy="102" r="9" fill="#24313D"/><circle cx="213.3" cy="80" r="9" fill="#24313D"/><circle cx="323.3" cy="124" r="9" fill="#24313D"/><circle cx="140.0" cy="102" r="9" fill="#24313D"/><text x="250.0" y="26.0" font-size="20" fill="#99004C" text-anchor="middle" font-weight="600">mean 1000.0</text><text x="363.3" y="62.0" font-size="20" fill="#99004C" text-anchor="start" font-weight="400">± s</text><text x="250.0" y="222.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">reading (°C)</text></svg>
+      <div class="eq" style="font-size:28px;margin-top:6px">s = √( Σ (x<sub>i</sub> − x̄)² / (n − 1) )</div>
+    </div>
+  </div>
+  <p class="small">Python counts positions from 0. The sample SD divides by n − 1; NumPy's default divides by n.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>8</span></div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="kicker">Pause and predict</div>
+  <h2>Sample or population: does it matter?</h2>
+  <p>For the 8 readings, the sample SD (divide by n − 1) is 0.293 °C and the population SD (divide by n) is 0.274 °C: a gap of 7%.</p>
+  <p><strong>Predict:</strong> with 60 readings from the same hold, does the gap grow, shrink or stay the same?</p>
+  <div class="reveal"><button type="button">Show the answer</button>
+    <div class="ans">It shrinks. The ratio of the two is √(n / (n − 1)): 1.069 for n = 8, but 1.008 for n = 60, under 1%. The choice matters most for small samples. The course uses the sample SD (ddof=1) for readings.</div></div>
+  <div class="foot"><span>Module 0 · Start here</span><span>9</span></div>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <h2>pandas: a furnace log as a table</h2>
+  <div class="cols">
+    <div style="flex:0 0 500px">
+      <table style="font-size:21px">
+        <tr><th>time_s</th><th>run_id</th><th>setpoint_C</th><th>zone_temp_C</th></tr>
+        <tr><td>0</td><td>R2026</td><td>1000.0</td><td>799.29</td></tr><tr><td>10</td><td>R2026</td><td>1000.0</td><td>812.29</td></tr><tr><td>20</td><td>R2026</td><td>1000.0</td><td>824.59</td></tr><tr><td colspan="4" style="text-align:center;color:#6A626B">…</td></tr><tr><td>360</td><td>R2026</td><td>1000.0</td><td>980.74</td></tr><tr><td>370</td><td>R2026</td><td>1000.0</td><td style="color:#99004C;font-weight:600">NaN</td></tr>
+      </table>
+    </div>
+    <div>
+<pre class="code">log = furnace_log(2026)   # 181 rows
+log["zone_temp_C"]        # one column
+log[log["time_s"] &gt;= 1200]  # some rows
+log["zone_temp_C"].isna().sum()  # 4</pre>
+    </div>
+  </div>
+  <p class="small">NaN means "not a number": the logger missed a reading. The example log misses the readings at 370, 380, 1120 and 1690 s.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>10</span></div>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <h2>Missing values: leave them out, never fill with zero</h2>
+  <table style="font-size:23px">
+    <tr><th>Hold period of the example run (61 rows, 1 missing)</th><th style="text-align:right">Mean (°C)</th><th style="text-align:right">Sample SD (°C)</th></tr>
+    <tr><td>Leave the missing reading out (60 readings)</td><td style="text-align:right">999.560</td><td style="text-align:right">0.430</td></tr>
+    <tr><td>Repeat the previous reading (forward fill)</td><td style="text-align:right">999.561</td><td style="text-align:right">0.427</td></tr>
+    <tr><td style="color:#99004C">Fill it with 0</td><td style="text-align:right;color:#99004C">983.17</td><td style="text-align:right;color:#99004C">127.98</td></tr>
+  </table>
+  <p style="margin-top:18px">One zero among 61 readings pulls the mean down by about 1000 / 61 ≈ 16 °C and makes the SD meaningless.</p>
+  <p class="small">Good habits: count the missing values, say how you handled them, and never let a filled value pass for a measured one.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>11</span></div>
+</section>
+
+<!-- 12 -->
+<section class="slide">
+  <h2>Plot the run, with units</h2>
+  <div><svg width="1130" height="470" viewBox="0 0 1130 470" role="img" aria-label="Zone temperature of the example furnace run against time: a warm-up from 800 to 1000 degrees C, then a hold near 1000"><line x1="110" y1="382.7" x2="1110" y2="382.7" stroke="#E4DCE0"/><text x="100.0" y="389.7" font-size="20" fill="#6A626B" text-anchor="end" font-weight="400">800</text><line x1="110" y1="296.4" x2="1110" y2="296.4" stroke="#E4DCE0"/><text x="100.0" y="303.4" font-size="20" fill="#6A626B" text-anchor="end" font-weight="400">850</text><line x1="110" y1="210.0" x2="1110" y2="210.0" stroke="#E4DCE0"/><text x="100.0" y="217.0" font-size="20" fill="#6A626B" text-anchor="end" font-weight="400">900</text><line x1="110" y1="123.6" x2="1110" y2="123.6" stroke="#E4DCE0"/><text x="100.0" y="130.6" font-size="20" fill="#6A626B" text-anchor="end" font-weight="400">950</text><line x1="110" y1="37.3" x2="1110" y2="37.3" stroke="#E4DCE0"/><text x="100.0" y="44.3" font-size="20" fill="#6A626B" text-anchor="end" font-weight="400">1000</text><text x="110.0" y="430.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">0</text><text x="276.7" y="430.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">5</text><text x="443.3" y="430.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">10</text><text x="610.0" y="430.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">15</text><text x="776.7" y="430.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">20</text><text x="943.3" y="430.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">25</text><text x="1110.0" y="430.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">30</text><text x="610.0" y="462.0" font-size="21" fill="#6A626B" text-anchor="middle" font-weight="400">time since push (minutes)</text><text x="26.0" y="210.0" font-size="21" fill="#6A626B" text-anchor="middle" font-weight="400" transform="rotate(-90 26 210.0)">zone temperature (°C)</text><rect x="776.7" y="20" width="333.3" height="380" fill="#F8F4F6"/><text x="943.3" y="158.2" font-size="22" fill="#99004C" text-anchor="middle" font-weight="600">hold period</text><text x="943.3" y="186.2" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">from 20 minutes on</text><text x="360.0" y="244.5" font-size="22" fill="#99004C" text-anchor="middle" font-weight="600">warm-up</text><line x1="110" y1="37.3" x2="1110" y2="37.3" stroke="#6A626B" stroke-dasharray="7 6" stroke-width="2"/><text x="120.0" y="27.3" font-size="19" fill="#6A626B" text-anchor="start" font-weight="400">setpoint 1000 °C</text><line x1="110" y1="400" x2="1110" y2="400" stroke="#24313D" stroke-width="2"/><path d="M110.0 384.0 L115.6 361.5 L121.1 340.3 L126.7 319.6 L132.2 303.0 L137.8 285.4 L143.3 270.0 L148.9 254.7 L154.4 240.8 L160.0 227.0 L165.6 215.4 L171.1 204.3 L176.7 194.2 L182.2 182.7 L187.8 173.9 L193.3 164.7 L198.9 157.5 L204.4 150.4 L210.0 142.0 L215.6 135.5 L221.1 129.5 L226.7 122.0 L232.2 118.6 L237.8 113.2 L243.3 108.6 L248.9 103.9 L254.4 98.7 L260.0 95.4 L265.6 90.7 L271.1 87.7 L276.7 83.0 L282.2 82.1 L287.8 79.5 L293.3 76.5 L298.9 74.8 L304.4 71.4 L310.0 70.5 M326.7 63.4 L332.2 61.9 L337.8 61.2 L343.3 59.5 L348.9 57.1 L354.4 56.7 L360.0 55.2 L365.6 54.4 L371.1 53.5 L376.7 51.2 L382.2 50.7 L387.8 49.8 L393.3 50.1 L398.9 48.4 L404.4 48.2 L410.0 46.3 L415.6 47.8 L421.1 46.2 L426.7 44.7 L432.2 45.8 L437.8 44.7 L443.3 43.5 L448.9 44.1 L454.4 42.7 L460.0 44.2 L465.6 43.4 L471.1 43.2 L476.7 41.5 L482.2 43.1 L487.8 41.5 L493.3 41.9 L498.9 40.8 L504.4 40.3 L510.0 40.4 L515.6 40.0 L521.1 40.0 L526.7 39.2 L532.2 40.9 L537.8 39.7 L543.3 39.5 L548.9 38.9 L554.4 39.9 L560.0 39.3 L565.6 39.3 L571.1 38.7 L576.7 39.1 L582.2 39.3 L587.8 38.4 L593.3 38.9 L598.9 38.6 L604.4 38.3 L610.0 39.4 L615.6 37.5 L621.1 38.9 L626.7 38.8 L632.2 38.3 L637.8 39.5 L643.3 38.2 L648.9 39.3 L654.4 39.2 L660.0 39.3 L665.6 38.0 L671.1 39.0 L676.7 38.3 L682.2 38.5 L687.8 36.3 L693.3 37.9 L698.9 39.7 L704.4 38.9 L710.0 37.4 L715.6 37.6 L721.1 40.3 L726.7 37.8 M737.8 38.3 L743.3 37.8 L748.9 38.6 L754.4 39.0 L760.0 37.5 L765.6 38.1 L771.1 38.7 L776.7 39.3 L782.2 39.3 L787.8 37.8 L793.3 37.7 L798.9 37.8 L804.4 37.8 L810.0 38.2 L815.6 37.3 L821.1 38.2 L826.7 37.3 L832.2 38.2 L837.8 39.3 L843.3 38.2 L848.9 38.1 L854.4 38.7 L860.0 37.6 L865.6 37.9 L871.1 38.6 L876.7 38.2 L882.2 38.2 L887.8 38.6 L893.3 38.9 L898.9 38.2 L904.4 37.4 L910.0 38.5 L915.6 38.3 L921.1 38.9 L926.7 38.1 L932.2 38.4 L937.8 38.1 L943.3 36.9 L948.9 37.9 L954.4 38.1 L960.0 38.1 L965.6 38.3 L971.1 38.0 L976.7 38.4 L982.2 38.0 L987.8 36.8 L993.3 38.5 L998.9 37.7 L1004.4 37.0 L1010.0 37.6 L1015.6 38.8 L1021.1 35.5 L1026.7 37.1 L1032.2 37.9 L1037.8 38.8 L1043.3 37.9 M1054.4 37.1 L1060.0 38.3 L1065.6 39.3 L1071.1 38.5 L1076.7 37.2 L1082.2 38.4 L1087.8 37.7 L1093.3 39.1 L1098.9 37.3 L1104.4 36.1 L1110.0 38.3" fill="none" stroke="#99004C" stroke-width="2.5"/><line x1="315.6" y1="400" x2="315.6" y2="388" stroke="#99004C" stroke-width="3"/><line x1="321.1" y1="400" x2="321.1" y2="388" stroke="#99004C" stroke-width="3"/><line x1="732.2" y1="400" x2="732.2" y2="388" stroke="#99004C" stroke-width="3"/><line x1="1048.9" y1="400" x2="1048.9" y2="388" stroke="#99004C" stroke-width="3"/><text x="1110.0" y="382.0" font-size="18" fill="#99004C" text-anchor="end" font-weight="400">ticks: missing readings</text></svg></div>
+  <p class="small" style="margin-top:2px">Every plot in the course has axis labels with units and says when the data are simulated. Gaps in the line are missing readings.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>12</span></div>
+</section>
+
+<!-- 13 -->
+<section class="slide">
+  <h2>Moving average: smoothing the hold</h2>
+  <div class="cols">
+    <div style="flex:0 0 640px"><svg width="640" height="400" viewBox="0 0 640 400" role="img" aria-label="Hold-period readings scattered around 999.6 degrees C and their 5-point moving average, a much smoother line"><line x1="92" y1="291.9" x2="626" y2="291.9" stroke="#E4DCE0"/><text x="84.0" y="298.9" font-size="19" fill="#6A626B" text-anchor="end" font-weight="400">999.0</text><line x1="92" y1="239.2" x2="626" y2="239.2" stroke="#E4DCE0"/><text x="84.0" y="246.2" font-size="19" fill="#6A626B" text-anchor="end" font-weight="400">999.5</text><line x1="92" y1="186.5" x2="626" y2="186.5" stroke="#E4DCE0"/><text x="84.0" y="193.5" font-size="19" fill="#6A626B" text-anchor="end" font-weight="400">1000.0</text><line x1="92" y1="133.9" x2="626" y2="133.9" stroke="#E4DCE0"/><text x="84.0" y="140.9" font-size="19" fill="#6A626B" text-anchor="end" font-weight="400">1000.5</text><line x1="92" y1="81.2" x2="626" y2="81.2" stroke="#E4DCE0"/><text x="84.0" y="88.2" font-size="19" fill="#6A626B" text-anchor="end" font-weight="400">1001.0</text><text x="92.0" y="362.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">0</text><text x="182.5" y="362.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">10</text><text x="273.0" y="362.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">20</text><text x="363.5" y="362.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">30</text><text x="454.0" y="362.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">40</text><text x="544.5" y="362.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">50</text><text x="359.0" y="390.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">reading number in the hold period</text><line x1="92" y1="334" x2="626" y2="334" stroke="#24313D" stroke-width="2"/><circle cx="92.0" cy="312.9" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="101.1" cy="311.9" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="110.1" cy="218.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="119.2" cy="211.8" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="128.2" cy="217.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="137.3" cy="221.3" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="146.3" cy="245.5" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="155.4" cy="189.7" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="164.4" cy="244.5" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="173.5" cy="188.6" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="182.5" cy="242.4" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="191.6" cy="309.8" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="200.6" cy="244.5" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="209.7" cy="237.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="218.7" cy="275.0" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="227.8" cy="207.6" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="236.8" cy="225.5" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="245.9" cy="267.6" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="254.9" cy="240.3" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="264.0" cy="240.3" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="273.0" cy="264.5" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="282.1" cy="286.6" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="291.1" cy="243.4" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="300.2" cy="192.9" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="309.2" cy="263.4" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="318.3" cy="250.8" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="327.3" cy="286.6" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="336.4" cy="233.9" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="345.4" cy="256.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="354.5" cy="237.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="363.5" cy="162.3" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="372.6" cy="222.3" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="381.6" cy="237.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="390.7" cy="238.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="399.7" cy="247.6" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="408.8" cy="228.7" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="417.8" cy="253.9" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="426.9" cy="231.8" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="435.9" cy="156.0" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="445.0" cy="260.3" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="454.0" cy="211.8" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="463.1" cy="172.8" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="472.1" cy="207.6" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="481.2" cy="282.4" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="490.2" cy="80.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="499.3" cy="174.9" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="508.3" cy="225.5" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="517.4" cy="282.4" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="526.4" cy="223.4" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="535.5" cy="174.9" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="544.5" cy="250.8" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="553.6" cy="311.9" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="562.6" cy="262.4" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="571.7" cy="179.2" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="580.7" cy="256.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="589.8" cy="215.0" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="598.8" cy="297.1" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="607.9" cy="190.7" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="616.9" cy="117.0" r="4.5" fill="#24313D" fill-opacity="0.75"/><circle cx="626.0" cy="251.8" r="4.5" fill="#24313D" fill-opacity="0.75"/><polyline points="110.1,254.4 119.2,236.0 128.2,222.8 137.3,217.1 146.3,223.6 155.4,217.9 164.4,222.1 173.5,235.0 182.5,245.9 191.6,244.5 200.6,261.7 209.7,254.8 218.7,237.9 227.8,242.6 236.8,243.2 245.9,236.3 254.9,247.6 264.0,259.8 273.0,255.0 282.1,245.5 291.1,250.2 300.2,247.4 309.2,247.4 318.3,245.5 327.3,258.2 336.4,252.9 345.4,235.2 354.5,222.3 363.5,223.0 372.6,219.4 381.6,221.5 390.7,234.8 399.7,241.1 408.8,240.0 417.8,223.6 426.9,226.1 435.9,222.8 445.0,206.5 454.0,201.7 463.1,227.0 472.1,191.0 481.2,183.6 490.2,194.1 499.3,209.1 508.3,197.3 517.4,216.2 526.4,231.4 535.5,248.7 544.5,244.7 553.6,235.8 562.6,252.1 571.7,244.9 580.7,241.9 589.8,227.6 598.8,215.2 607.9,214.3" fill="none" stroke="#99004C" stroke-width="4"/><circle cx="106" cy="30" r="5" fill="#24313D"/><text x="118.0" y="37.0" font-size="20" fill="#24313D" text-anchor="start" font-weight="400">readings</text><line x1="242" y1="30" x2="268" y2="30" stroke="#99004C" stroke-width="4"/><text x="276.0" y="37.0" font-size="20" fill="#99004C" text-anchor="start" font-weight="400">5-point moving average</text></svg></div>
+    <div>
+      <div class="eq" style="font-size:24px;margin-top:0">y<sub>j</sub> = (x<sub>j</sub> + x<sub>j+1</sub> + … + x<sub>j+w−1</sub>) / w</div>
+      <ul style="padding-left:28px">
+        <li style="font-size:24px"><strong>n</strong> readings give <strong>n − w + 1</strong> averages: 60 → 56 for w = 5.</li>
+        <li style="font-size:24px">Independent noise: the SD falls by about <strong>√w</strong>.</li>
+        <li style="font-size:24px">The price: the average <strong>lags</strong> behind a changing signal.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Module 0 · Start here</span><span>13</span></div>
+</section>
+
+<!-- 14 -->
+<section class="slide">
+  <div class="kicker">Pause and predict</div>
+  <h2>How much does a 5-point average smooth?</h2>
+  <p>The example hold readings have a sample SD of 0.430 °C.</p>
+  <p><strong>Predict:</strong> the SD of their 5-point moving average.</p>
+  <div class="reveal"><button type="button">Show the answer</button>
+    <div class="ans">About 0.430 / √5 ≈ 0.19 °C. The notebook gives 0.175 °C, a ratio of 2.46 rather than 2.24. An SD estimated from 56 overlapping averages has its own scatter, so expect close, not exact.</div></div>
+  <div class="foot"><span>Module 0 · Start here</span><span>14</span></div>
+</section>
+
+<!-- 15 -->
+<section class="slide">
+  <div class="kicker">Pause and predict</div>
+  <h2>The price of smoothing</h2>
+  <p>A twin running in real time has only past readings, so it uses a <strong>trailing</strong> average: at 100 s, the 5-point average uses the readings from 60 to 100 s, centred 20 s in the past.</p>
+  <p>At 100 s the zone is warming by about 0.7 °C per second. <strong>Predict:</strong> how far below the current temperature does the average read?</p>
+  <div class="reveal"><button type="button">Show the answer</button>
+    <div class="ans">About 0.7 × 20 ≈ 14 °C. Without noise the exact gap is 15.2 °C: the warm-up was steeper in the past. In the hold the level is flat, so the lag costs nothing there; Module 5 meets the same trade-off in the EWMA filter.</div></div>
+  <div class="foot"><span>Module 0 · Start here</span><span>15</span></div>
+</section>
+
+<!-- 16 -->
+<section class="slide">
+  <h2>Debugging: the planted bug</h2>
+  <div class="cols">
+    <div style="flex:0 0 600px">
+<pre class="code">def moving_average(x, window):
+    kernel = np.ones(window)
+    return np.convolve(np.asarray(x, dtype=float),
+                       kernel, mode="valid")
+
+moving_average(hold_readings, 5)[0]
+# 4996.78</pre>
+    </div>
+    <div>
+      <p style="font-size:25px">Look at the numbers: is 4,997 °C possible for a zone held at 1000 °C?</p>
+      <p style="font-size:25px">Test a case you can do by hand: [1, 2, 3, 4, 5, 6] with w = 3 should give [2, 3, 4, 5].</p>
+      <p style="font-size:25px">Change one thing, then rerun the cell and every cell that uses it.</p>
+    </div>
+  </div>
+  <p class="small">In the lab you find and fix this bug. The check cell tests the repaired function on cases you cannot see.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>16</span></div>
+</section>
+
+<!-- 17 -->
+<section class="slide">
+  <h2>Your KEY and the verification value</h2>
+  <div><svg width="1130" height="200" viewBox="0 0 1130 200" role="img" aria-label="Canvas gives a KEY, the notebook uses it, the check cell tests the functions, and only then prints the verification value"><defs><marker id="ah17" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#6A626B"/></marker></defs><rect x="6" y="30" width="238" height="140" rx="10" fill="#FBF3F7" stroke="#99004C" stroke-width="2.5"/><text x="125.0" y="68.0" font-size="23" fill="#24313D" text-anchor="middle" font-weight="600">Canvas, Question 1</text><text x="125.0" y="98.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">shows your KEY,</text><text x="125.0" y="124.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">a number 100 to 999</text><line x1="248" y1="100" x2="286" y2="100" stroke="#6A626B" stroke-width="3" marker-end="url(#ah17)"/><rect x="290" y="30" width="238" height="140" rx="10" fill="#FFFFFF" stroke="#E4DCE0" stroke-width="2.5"/><text x="409.0" y="68.0" font-size="23" fill="#24313D" text-anchor="middle" font-weight="600">Notebook, Step 6</text><text x="409.0" y="98.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">set KEY = your number</text><text x="409.0" y="124.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">and run the cell</text><line x1="532" y1="100" x2="570" y2="100" stroke="#6A626B" stroke-width="3" marker-end="url(#ah17)"/><rect x="574" y="30" width="238" height="140" rx="10" fill="#FFFFFF" stroke="#E4DCE0" stroke-width="2.5"/><text x="693.0" y="68.0" font-size="23" fill="#24313D" text-anchor="middle" font-weight="600">Check cell, Step 7</text><text x="693.0" y="98.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">tests your functions</text><text x="693.0" y="124.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">on hidden cases</text><line x1="816" y1="100" x2="854" y2="100" stroke="#6A626B" stroke-width="3" marker-end="url(#ah17)"/><rect x="858" y="30" width="238" height="140" rx="10" fill="#FBF3F7" stroke="#99004C" stroke-width="2.5"/><text x="977.0" y="68.0" font-size="23" fill="#24313D" text-anchor="middle" font-weight="600">Passed?</text><text x="977.0" y="98.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">it prints your</text><text x="977.0" y="124.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">verification value</text></svg></div>
+  <ul style="margin-top:14px">
+    <li>Question 1, the verification value, is worth <strong>4 of the 10 points</strong>; Questions 2 to 5 are worth 1.5 each.</li>
+    <li>8 of 10 opens Module 1, so working code is required.</li>
+    <li>A new attempt gives a new KEY: run Steps 6 and 7 again with it.</li>
+  </ul>
+  <div class="foot"><span>Module 0 · Start here</span><span>17</span></div>
+</section>
+
+<!-- 18 -->
+<section class="slide">
+  <h2>Summary</h2>
+  <ul>
+    <li>A twin starts with data: readings that are cleaned and summarized.</li>
+    <li>Mean and <strong>sample</strong> SD (ddof=1), with missing values left out, never set to zero.</li>
+    <li>pandas picks columns and rows; every plot carries units.</li>
+    <li>A w-point moving average divides independent noise by about √w, and lags a changing signal.</li>
+  </ul>
+  <div class="eq" style="font-size:26px;margin-top:20px"><strong>Next:</strong> the Module 0 lab. You write <code>mean_and_sd()</code>, fix <code>moving_average()</code>, and analyse your own furnace run.</div>
+  <div class="foot"><span>Module 0 · Start here</span><span>18</span></div>
+</section>
+
+<!-- 19 -->
+<section class="slide">
+  <h2>Credits and license</h2>
+  <p>These slides were written for SemiAcademy's <em>Digital Twins for Semiconductor Manufacturing</em> course, developed through the Intel Semiconductor Education Program at Central State University (ISEP-CSU).</p>
+  <p>License: <strong>Creative Commons Attribution 4.0 International (CC BY 4.0)</strong>, https://creativecommons.org/licenses/by/4.0/. You may copy, adapt and share them, with credit.</p>
+  <p>Suggested credit: "Module 0 slides, Digital Twins for Semiconductor Manufacturing, SemiAcademy / ISEP-CSU, CC BY 4.0."</p>
+  <p class="small">Every data value on these slides is simulated with the course's furnace model (furnace.py, example run 2026). Source: github.com/CSU-Physics/digital-twins-notebooks (media/m0/m0-slides.html). Print or save as PDF from your browser to get one slide per page.</p>
+  <div class="foot"><span>Module 0 · Start here</span><span>19</span></div>
+</section>
+
+</div></div>
+<div id="bar">
+  <button type="button" id="prev" aria-label="Previous slide">◀ Prev</button>
+  <span id="count">1 / 19</span>
+  <button type="button" id="next" aria-label="Next slide">Next ▶</button>
+  <button type="button" id="full">Full screen</button>
+  <button type="button" id="print">Print / PDF</button>
+</div>
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide')), i = 0;
+  var m = /[#&]s=?(\d+)/.exec(location.hash); if (m) i = Math.min(slides.length - 1, Math.max(0, parseInt(m[1], 10) - 1));
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (s, j) { s.classList.toggle('on', j === i); });
+    document.getElementById('count').textContent = (i + 1) + ' / ' + slides.length;
+    try { history.replaceState(null, '', '#s' + (i + 1)); } catch (e) {}
+  }
+  function fit() {
+    var vp = document.getElementById('viewport'), st = document.getElementById('stage');
+    var sc = Math.min(vp.clientWidth / 1280, vp.clientHeight / 720);
+    st.style.transform = 'scale(' + sc + ')';
+  }
+  document.getElementById('prev').onclick = function () { show(i - 1); };
+  document.getElementById('next').onclick = function () { show(i + 1); };
+  document.getElementById('full').onclick = function () { var d = document.documentElement; if (!document.fullscreenElement && d.requestFullscreen) d.requestFullscreen(); else if (document.exitFullscreen) document.exitFullscreen(); };
+  document.getElementById('print').onclick = function () { window.print(); };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { show(i + 1); e.preventDefault(); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { show(i - 1); e.preventDefault(); }
+    if (e.key === 'Home') show(0); if (e.key === 'End') show(slides.length - 1);
+  });
+  var tx = null;
+  document.addEventListener('touchstart', function (e) { tx = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', function (e) { if (tx === null) return; var dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1)); tx = null; });
+  document.getElementById('stage').addEventListener('click', function (e) {
+    var b = e.target.closest('.reveal button'); if (b) b.parentNode.classList.add('open');
+  });
+  window.addEventListener('resize', fit);
+  fit(); show(i);
+})();
+</script>
+</body>
+</html>

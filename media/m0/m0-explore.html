@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module 0 Explorer: Smoothing and Missing Readings</title>
+<style>
+  :root { --maroon:#99004C; --ink:#24313D; --muted:#6A626B; --line:#E4DCE0; --tint:#F8F4F6; --ok:#2E7D4F; --bad:#B3261E; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:"Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:15px; }
+  .tabs { display:flex; border-bottom:2px solid var(--line); background:var(--tint); }
+  .tabs button { flex:1; border:0; background:none; padding:10px 8px; font-size:15px; cursor:pointer; color:var(--muted); border-bottom:3px solid transparent; }
+  .tabs button.on { color:var(--maroon); border-bottom-color:var(--maroon); font-weight:600; background:#fff; }
+  .tool { display:none; padding:12px 16px; }
+  .tool.on { display:block; }
+  h2 { font-family:Georgia, serif; color:var(--maroon); font-size:19px; margin:0 0 4px; }
+  .hint { color:var(--muted); margin:0 0 10px; line-height:1.45; }
+  .grid { display:grid; grid-template-columns: 270px 1fr; gap:14px; align-items:start; }
+  @media (max-width: 660px) { .grid { grid-template-columns: 1fr; } }
+  .box { border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:0; }
+  .box h3 { margin:0 0 6px; font-size:14.5px; color:var(--maroon); }
+  label { display:flex; justify-content:space-between; align-items:center; margin:8px 0 2px; font-size:14px; gap:8px; }
+  label input[type=number] { width:74px; font-size:14px; padding:2px 4px; border:1px solid var(--line); border-radius:4px; text-align:right; }
+  input[type=range] { width:100%; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  button.act { border:2px solid var(--ink); background:#fff; color:var(--ink); padding:4px 9px; border-radius:5px; font-size:13.5px; cursor:pointer; }
+  button.act.on, button.act.fill { background:var(--maroon); border-color:var(--maroon); color:#fff; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  svg.plot { width:100%; height:auto; display:block; }
+  table.st { border-collapse:collapse; width:100%; font-size:13.5px; margin-top:8px; }
+  table.st th, table.st td { border:1px solid var(--line); padding:4px 7px; text-align:right; }
+  table.st th:first-child, table.st td:first-child { text-align:left; }
+  table.st th { background:var(--tint); font-weight:600; }
+  table.st tr.badrow td { color:var(--bad); }
+  .stats { font-size:14px; line-height:1.55; margin-top:6px; }
+  .note { margin-top:8px; padding:7px 10px; border-radius:4px; font-size:13.5px; background:#EEF6F0; color:var(--ok); line-height:1.4; }
+  .note.warn { background:#FFF7E0; color:#7A5C00; }
+  .note.info { background:var(--tint); color:var(--ink); }
+  .small { font-size:12.5px; color:var(--muted); margin:6px 0 0; line-height:1.4; }
+  .credit { color:var(--muted); font-size:12px; padding:8px 16px 12px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="tabs" role="tablist">
+  <button type="button" data-t="smooth" role="tab">1. Smoothing and lag</button>
+  <button type="button" data-t="missing" role="tab">2. Missing readings</button>
+</div>
+
+<!-- TOOL 1: moving average, noise and lag -->
+<section class="tool" id="t-smooth" role="tabpanel">
+  <h2>How much does a moving average smooth, and what does it cost?</h2>
+  <p class="hint">A simulated furnace run: one reading every 10 s for 30 minutes. Change the thermocouple noise and the window, then switch between the hold period and the whole run.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Settings</h3>
+      <label for="sig">Noise σ (°C) <input type="number" id="sigN" min="0.1" max="1" step="0.05" value="0.45" aria-label="Noise sigma in degrees C"></label>
+      <input type="range" id="sig" min="0.1" max="1" step="0.05" value="0.45">
+      <label for="win">Window w (readings) <input type="number" id="winN" min="1" max="15" step="1" value="5" aria-label="Window in readings"></label>
+      <input type="range" id="win" min="1" max="15" step="1" value="5">
+      <div class="row">
+        <button type="button" class="act on" id="vHold">Hold period</button>
+        <button type="button" class="act" id="vRun">Whole run</button>
+      </div>
+      <div class="row"><button type="button" class="act fill" id="new1">New run</button></div>
+      <p class="small">In the hold view the average is drawn at the middle of its window, as in the lab. In the whole-run view it is a <strong>trailing</strong> average, drawn at the time of its newest reading, as a twin running in real time would compute it.</p>
+    </div>
+    <div class="box">
+      <h3 id="plotTitle1">Result</h3>
+      <svg class="plot" id="plot1" viewBox="0 0 560 300" role="img" aria-label="Readings and their moving average"></svg>
+      <div class="stats" id="stats1"></div>
+      <div class="note info" id="msg1"></div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOL 2: missing readings -->
+<section class="tool" id="t-missing" role="tabpanel">
+  <h2>Missing readings: leave them out, fill them, or set them to zero?</h2>
+  <p class="hint">The hold period of a simulated run has 61 readings, one every 10 s from 20 minutes on. Choose how many the logger misses, then compare three ways of handling them. Only a simulation knows the missing values, so you can compare with the full data.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Settings</h3>
+      <label for="km">Missing readings <input type="number" id="kmN" min="0" max="20" step="1" value="3" aria-label="Number of missing readings"></label>
+      <input type="range" id="km" min="0" max="20" step="1" value="3">
+      <div class="row">
+        <button type="button" class="act fill" id="new2">New pattern</button>
+        <button type="button" class="act" id="newrun2">New run</button>
+      </div>
+      <p class="small">New pattern keeps the run and picks other readings to lose; New run draws new noise and a new offset.</p>
+    </div>
+    <div class="box">
+      <h3>Hold period</h3>
+      <svg class="plot" id="plot2" viewBox="0 0 560 230" role="img" aria-label="Hold-period readings with the missing ones marked"></svg>
+      <table class="st" id="tab2"></table>
+      <div class="note info" id="msg2"></div>
+    </div>
+  </div>
+</section>
+
+<div class="credit">Module 0 explorer · Digital Twins for Semiconductor Manufacturing · SemiAcademy / ISEP-CSU · CC BY 4.0. Every value is simulated with the course's furnace model: setpoint 1000 °C, warm-up from 800 °C with a time constant of 150 s, readings rounded to 0.01 °C.</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var SET = 1000, LOAD = 800, TAU = 150, STEP = 10, DUR = 1800, HOLD = 1200;
+
+  // ---------------------------------------------------------------- tabs
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs button'));
+  function openTab(t) {
+    tabs.forEach(function (b) { b.classList.toggle('on', b.dataset.t === t); });
+    document.querySelectorAll('.tool').forEach(function (s) { s.classList.toggle('on', s.id === 't-' + t); });
+  }
+  tabs.forEach(function (b) { b.onclick = function () { openTab(b.dataset.t); }; });
+  function fromHash() { openTab(location.hash.indexOf('missing') >= 0 ? 'missing' : 'smooth'); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // ---------------------------------------------------------------- helpers
+  function rng(seed) {             // mulberry32
+    var a = seed >>> 0;
+    return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  function gauss(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function trueT(t, off) { return SET + off - (SET - LOAD) * Math.exp(-t / TAU); }
+  function mean(a) { var s = 0; for (var i = 0; i < a.length; i++) s += a[i]; return s / a.length; }
+  function sd(a) { var m = mean(a), s = 0; for (var i = 0; i < a.length; i++) s += (a[i] - m) * (a[i] - m); return Math.sqrt(s / (a.length - 1)); }
+  function movavg(x, w) { var out = [], s = 0, i; for (i = 0; i < x.length; i++) { s += x[i]; if (i >= w) s -= x[i - w]; if (i >= w - 1) out.push(s / w); } return out; }
+  function sv(svg, tag, at, txt) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (txt !== undefined) e.textContent = txt; svg.appendChild(e); return e; }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function f(v, d) { return v.toFixed(d); }
+  // a run: times, noise-free temperatures and readings (unit noise scaled later, so the noise slider keeps the same pattern)
+  function makeRun(seed) {
+    var r = rng(seed), off = r() - 0.5, t = [], tru = [], e = [];
+    for (var s = 0; s <= DUR; s += STEP) { t.push(s); tru.push(trueT(s, off)); e.push(gauss(r)); }
+    return { t: t, tru: tru, e: e, off: off, r: r };
+  }
+  function readings(run, sigma) { return run.tru.map(function (v, i) { return Math.round((v + sigma * run.e[i]) * 100) / 100; }); }
+  function axes(svg, X0, X1, Y0, Y1, xt, yt, xl, yl, X, Y, yd) {
+    yt.forEach(function (v) { sv(svg, 'line', { x1: X0, y1: Y(v), x2: X1, y2: Y(v), stroke: '#E4DCE0' }); sv(svg, 'text', { x: X0 - 6, y: Y(v) + 4, 'text-anchor': 'end', 'font-size': 11.5, fill: '#6A626B' }, v.toFixed(yd)); });
+    xt.forEach(function (v) { sv(svg, 'text', { x: X(v), y: Y0 + 16, 'text-anchor': 'middle', 'font-size': 11.5, fill: '#6A626B' }, String(v)); });
+    sv(svg, 'line', { x1: X0, y1: Y0, x2: X1, y2: Y0, stroke: '#24313D', 'stroke-width': 1.5 });
+    sv(svg, 'text', { x: (X0 + X1) / 2, y: Y0 + 33, 'text-anchor': 'middle', 'font-size': 12, fill: '#6A626B' }, xl);
+    sv(svg, 'text', { x: 11, y: (Y0 + Y1) / 2, 'text-anchor': 'middle', 'font-size': 12, fill: '#6A626B', transform: 'rotate(-90 11 ' + (Y0 + Y1) / 2 + ')' }, yl);
+  }
+  function niceRange(vals, pad, stepGuess) {
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    lo = Math.floor((lo - pad) / stepGuess) * stepGuess; hi = Math.ceil((hi + pad) / stepGuess) * stepGuess;
+    var ticks = []; for (var v = lo; v <= hi + 1e-9; v += stepGuess) ticks.push(Math.round(v * 1000) / 1000);
+    return { lo: lo, hi: hi, ticks: ticks };
+  }
+  function pair(range, num, cb) {
+    range.addEventListener('input', function () { num.value = range.value; cb(); });
+    num.addEventListener('change', function () {
+      var v = parseFloat(num.value), lo = parseFloat(range.min), hi = parseFloat(range.max), st = parseFloat(range.step);
+      if (isNaN(v)) v = parseFloat(range.value);
+      v = Math.min(hi, Math.max(lo, Math.round(v / st) * st)); v = Math.round(v * 100) / 100;
+      num.value = v; range.value = v; cb();
+    });
+  }
+
+  // ---------------------------------------------------------------- tool 1: smoothing and lag
+  var seed1 = 2026, run1 = makeRun(seed1), view = 'hold';
+  function draw1() {
+    var sigma = parseFloat($('sig').value), w = parseInt($('win').value, 10);
+    var x = readings(run1, sigma), svg = $('plot1'); clear(svg);
+    var X0 = 64, X1 = 548, Y0 = 250, Y1 = 30, msg, cls = 'note info', st;
+    if (view === 'hold') {
+      var h = x.slice(HOLD / STEP), ma = movavg(h, w), n = h.length;
+      var rg = niceRange(h, 0.05, sigma > 0.5 ? 1 : 0.5);
+      var X = function (k) { return X0 + k / (n - 1) * (X1 - X0); }, Y = function (v) { return Y0 - (v - rg.lo) / (rg.hi - rg.lo) * (Y0 - Y1); };
+      axes(svg, X0, X1, Y0, Y1, [0, 10, 20, 30, 40, 50, 60], rg.ticks, 'reading number in the hold period', 'zone temperature (°C)', X, Y, 1);
+      h.forEach(function (v, k) { sv(svg, 'circle', { cx: X(k), cy: Y(v), r: 2.6, fill: '#24313D', 'fill-opacity': 0.75 }); });
+      var pts = ma.map(function (v, k) { return X(k + (w - 1) / 2).toFixed(1) + ',' + Y(v).toFixed(1); }).join(' ');
+      sv(svg, 'polyline', { points: pts, fill: 'none', stroke: '#99004C', 'stroke-width': 2.5 });
+      sv(svg, 'circle', { cx: X0 + 10, cy: 10, r: 3, fill: '#24313D' }); sv(svg, 'text', { x: X0 + 18, y: 14, 'font-size': 12, fill: '#24313D' }, 'readings');
+      sv(svg, 'line', { x1: X0 + 82, y1: 10, x2: X0 + 100, y2: 10, stroke: '#99004C', 'stroke-width': 2.5 }); sv(svg, 'text', { x: X0 + 106, y: 14, 'font-size': 12, fill: '#99004C' }, w + '-point moving average');
+      var s0 = sd(h), s1 = ma.length > 1 ? sd(ma) : NaN, ratio = s0 / s1;
+      $('plotTitle1').textContent = 'Hold period: ' + n + ' readings, ' + ma.length + ' averages';
+      st = 'Sample SD of the readings: <b class="mono">' + f(s0, 3) + ' °C</b><br>Sample SD of the ' + w + '-point average: <b class="mono">' + f(s1, 3) + ' °C</b><br>Ratio: <b class="mono">' + f(ratio, 2) + '</b>, compared with √' + w + ' = <b class="mono">' + f(Math.sqrt(w), 2) + '</b>';
+      if (w === 1) msg = 'A window of 1 averages each reading with itself: the line goes through every dot and the ratio is exactly 1.';
+      else {
+        msg = 'For independent noise, averaging ' + w + ' readings divides the SD by about √' + w + ' = ' + f(Math.sqrt(w), 2) + '. The ratio you see (' + f(ratio, 2) + ') is close but not exact: an SD estimated from ' + ma.length + ' overlapping averages has its own scatter. Press New run a few times to see it vary.';
+        if (w >= 9) { msg = 'With w = ' + w + ', only ' + ma.length + ' averages are left from ' + n + ' readings, and neighbouring averages share ' + (w - 1) + ' of their ' + w + ' readings, so they rise and fall together. Their sample SD then tends to come out too small, so the ratio is usually above √' + w + ' = ' + f(Math.sqrt(w), 2) + ' and varies a lot from run to run (here ' + f(ratio, 2) + '). A long window needs a long record.'; cls = 'note warn'; }
+      }
+    } else {
+      var t = run1.t, tm = t.map(function (s) { return s / 60; }), tma = movavg(x, w), tru = run1.tru;
+      var Xr = function (m) { return X0 + m / 30 * (X1 - X0); }, Yr = function (v) { return Y0 - (v - 790) / (1015 - 790) * (Y0 - Y1); };
+      axes(svg, X0, X1, Y0, Y1, [0, 5, 10, 15, 20, 25, 30], [800, 850, 900, 950, 1000], 'time since push (minutes)', 'zone temperature (°C)', Xr, Yr, 0);
+      sv(svg, 'polyline', { points: tm.map(function (m, i) { return Xr(m).toFixed(1) + ',' + Yr(x[i]).toFixed(1); }).join(' '), fill: 'none', stroke: '#24313D', 'stroke-width': 1, 'stroke-opacity': 0.6 });
+      sv(svg, 'polyline', { points: tm.map(function (m, i) { return Xr(m).toFixed(1) + ',' + Yr(tru[i]).toFixed(1); }).join(' '), fill: 'none', stroke: '#6A626B', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' });
+      sv(svg, 'polyline', { points: tma.map(function (v, k) { return Xr(tm[k + w - 1]).toFixed(1) + ',' + Yr(v).toFixed(1); }).join(' '), fill: 'none', stroke: '#99004C', 'stroke-width': 2.5 });
+      var ly = Y0 - 70;
+      sv(svg, 'line', { x1: 300, y1: ly, x2: 318, y2: ly, stroke: '#24313D', 'stroke-opacity': 0.6 }); sv(svg, 'text', { x: 324, y: ly + 4, 'font-size': 12, fill: '#24313D' }, 'readings');
+      sv(svg, 'line', { x1: 300, y1: ly + 18, x2: 318, y2: ly + 18, stroke: '#6A626B', 'stroke-dasharray': '5 4', 'stroke-width': 1.5 }); sv(svg, 'text', { x: 324, y: ly + 22, 'font-size': 12, fill: '#6A626B' }, 'true temperature (known in a simulation)');
+      sv(svg, 'line', { x1: 300, y1: ly + 36, x2: 318, y2: ly + 36, stroke: '#99004C', 'stroke-width': 2.5 }); sv(svg, 'text', { x: 324, y: ly + 40, 'font-size': 12, fill: '#99004C' }, w + '-point trailing average');
+      // lag of the noise-free trailing average behind the true temperature
+      var ntma = movavg(tru, w), gap = 0, at = 0;
+      for (var k = 0; k < ntma.length; k++) { var g = tru[k + w - 1] - ntma[k]; if (g > gap) { gap = g; at = t[k + w - 1]; } }
+      var gapHold = tru[HOLD / STEP] - ntma[HOLD / STEP - (w - 1)];
+      if (Math.abs(gapHold) < 5e-4) gapHold = 0;
+      $('plotTitle1').textContent = 'Whole run: warm-up and hold';
+      st = 'Lag of a ' + w + '-point trailing average: (w − 1) / 2 = <b class="mono">' + f((w - 1) / 2, 1) + '</b> readings = <b class="mono">' + f((w - 1) / 2 * STEP, 0) + ' s</b><br>Largest gap below the true temperature, without noise: <b class="mono">' + f(gap, 1) + ' °C</b>' + (w > 1 ? ' at ' + at + ' s' : '') + '<br>Gap at the start of the hold (1,200 s): <b class="mono">' + f(gapHold, 3) + ' °C</b>';
+      if (w === 1) msg = 'A window of 1 does not average at all, so there is no lag, and no smoothing either.';
+      else { msg = 'During the warm-up the temperature rises fast, so an average of the last ' + w + ' readings reads below the current value, by up to ' + f(gap, 1) + ' °C at ' + at + ' s. By the hold the level is almost flat and the gap is ' + f(gapHold, 3) + ' °C, compared with noise σ = ' + f(sigma, 2) + ' °C. More smoothing means more lag: this is why the lab smooths only the hold period.'; cls = gap > 5 ? 'note warn' : 'note info'; }
+    }
+    $('stats1').innerHTML = st;
+    $('msg1').className = cls; $('msg1').textContent = msg;
+  }
+  pair($('sig'), $('sigN'), draw1);
+  pair($('win'), $('winN'), draw1);
+  $('vHold').onclick = function () { view = 'hold'; $('vHold').classList.add('on'); $('vRun').classList.remove('on'); draw1(); };
+  $('vRun').onclick = function () { view = 'run'; $('vRun').classList.add('on'); $('vHold').classList.remove('on'); draw1(); };
+  $('new1').onclick = function () { seed1 += 1; run1 = makeRun(seed1); draw1(); };
+  draw1();
+
+  // ---------------------------------------------------------------- tool 2: missing readings
+  var seed2 = 7, run2 = makeRun(seed2), pat = 1;
+  function draw2() {
+    var k = parseInt($('km').value, 10), x = readings(run2, 0.45).slice(HOLD / STEP), n = x.length;
+    var r = rng(1000 * seed2 + pat), idx = [], i;
+    for (i = 1; i < n; i++) idx.push(i);
+    for (i = idx.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), tmp = idx[i]; idx[i] = idx[j]; idx[j] = tmp; }
+    var gone = {}; idx.slice(0, k).forEach(function (q) { gone[q] = true; });
+    var kept = [], ff = [], zero = [], last = x[0];
+    for (i = 0; i < n; i++) {
+      if (gone[i]) { ff.push(last); zero.push(0); }
+      else { kept.push(x[i]); ff.push(x[i]); zero.push(x[i]); last = x[i]; }
+    }
+    var svg = $('plot2'); clear(svg);
+    var X0 = 64, X1 = 548, Y0 = 186, Y1 = 26, rg = niceRange(x, 0.05, 0.5);
+    var X = function (s) { return X0 + (s - HOLD) / (DUR - HOLD) * (X1 - X0); }, Y = function (v) { return Y0 - (v - rg.lo) / (rg.hi - rg.lo) * (Y0 - Y1); };
+    axes(svg, X0, X1, Y0, Y1, [1200, 1300, 1400, 1500, 1600, 1700, 1800], rg.ticks, 'time since push (s)', '°C', X, Y, 1);
+    for (i = 0; i < n; i++) {
+      var s = HOLD + i * STEP;
+      if (gone[i]) {
+        sv(svg, 'circle', { cx: X(s), cy: Y(x[i]), r: 3.4, fill: 'none', stroke: '#B3261E', 'stroke-width': 1.5 });
+        sv(svg, 'line', { x1: X(s), y1: Y0, x2: X(s), y2: Y0 - 9, stroke: '#B3261E', 'stroke-width': 2 });
+      } else sv(svg, 'circle', { cx: X(s), cy: Y(x[i]), r: 3, fill: '#24313D' });
+    }
+    sv(svg, 'circle', { cx: X0 + 10, cy: 8, r: 3, fill: '#24313D' }); sv(svg, 'text', { x: X0 + 18, y: 12, 'font-size': 12, fill: '#24313D' }, 'logged');
+    sv(svg, 'circle', { cx: X0 + 80, cy: 8, r: 3.4, fill: 'none', stroke: '#B3261E', 'stroke-width': 1.5 }); sv(svg, 'text', { x: X0 + 88, y: 12, 'font-size': 12, fill: '#B3261E' }, 'missed by the logger (value known only in a simulation)');
+    var mAll = mean(x), sAll = sd(x), mK = mean(kept), sK = sd(kept), mF = mean(ff), sF = sd(ff), mZ = mean(zero), sZ = sd(zero);
+    var rows = '<tr><th>Method</th><th>values used</th><th>mean (°C)</th><th>sample SD (°C)</th></tr>' +
+      '<tr><td>Leave them out</td><td>' + kept.length + '</td><td class="mono">' + f(mK, 3) + '</td><td class="mono">' + f(sK, 3) + '</td></tr>' +
+      '<tr><td>Repeat the previous reading</td><td>' + n + '</td><td class="mono">' + f(mF, 3) + '</td><td class="mono">' + f(sF, 3) + '</td></tr>' +
+      '<tr' + (k ? ' class="badrow"' : '') + '><td>Fill with 0</td><td>' + n + '</td><td class="mono">' + f(mZ, 2) + '</td><td class="mono">' + f(sZ, 2) + '</td></tr>' +
+      '<tr><td><i>All 61 (only in a simulation)</i></td><td>' + n + '</td><td class="mono">' + f(mAll, 3) + '</td><td class="mono">' + f(sAll, 3) + '</td></tr>';
+    $('tab2').innerHTML = rows;
+    var msg, cls = 'note info';
+    if (k === 0) msg = 'No readings are missing, so the three methods give the same mean and SD as the full data.';
+    else {
+      msg = 'Setting ' + k + (k === 1 ? ' missing reading' : ' missing readings') + ' to 0 pulls the mean down by ' + f(mK - mZ, 1) + ' °C (about 1000 × ' + k + ' / 61) and makes the SD meaningless. Compared with the full data, leaving them out moves the mean by ' + f(Math.abs(mK - mAll), 3) + ' °C and repeating the previous reading by ' + f(Math.abs(mF - mAll), 3) + ' °C, both small next to the noise. But repeating counts ' + k + ' copied ' + (k === 1 ? 'value' : 'values') + ' as if ' + (k === 1 ? 'it were a measurement' : 'they were measurements') + ': say so if you use it.';
+      cls = 'note warn';
+    }
+    $('msg2').className = cls; $('msg2').textContent = msg;
+  }
+  pair($('km'), $('kmN'), draw2);
+  $('new2').onclick = function () { pat += 1; draw2(); };
+  $('newrun2').onclick = function () { seed2 += 1; run2 = makeRun(seed2); pat = 1; draw2(); };
+  draw2();
+})();
+</script>
+</body>
+</html>
