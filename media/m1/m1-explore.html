@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module 1 Explorer: Model, Shadow or Twin, and How Often to Sync</title>
+<style>
+  :root { --maroon:#99004C; --ink:#24313D; --muted:#6A626B; --line:#E4DCE0; --tint:#F8F4F6; --ok:#2E7D4F; --bad:#B3261E; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:"Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:15px; }
+  .tabs { display:flex; border-bottom:2px solid var(--line); background:var(--tint); }
+  .tabs button { flex:1; border:0; background:none; padding:10px 8px; font-size:15px; cursor:pointer; color:var(--muted); border-bottom:3px solid transparent; }
+  .tabs button.on { color:var(--maroon); border-bottom-color:var(--maroon); font-weight:600; background:#fff; }
+  .tool { display:none; padding:12px 16px; }
+  .tool.on { display:block; }
+  h2 { font-family:Georgia, serif; color:var(--maroon); font-size:19px; margin:0 0 4px; }
+  .hint { color:var(--muted); margin:0 0 10px; line-height:1.45; }
+  .grid { display:grid; grid-template-columns: 290px 1fr; gap:14px; align-items:start; }
+  @media (max-width: 660px) { .grid { grid-template-columns: 1fr; } }
+  .box { border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:0; }
+  .box h3 { margin:0 0 6px; font-size:14.5px; color:var(--maroon); }
+  label { display:flex; justify-content:space-between; align-items:center; margin:8px 0 2px; font-size:14px; gap:8px; }
+  label input[type=number] { width:74px; font-size:14px; padding:2px 4px; border:1px solid var(--line); border-radius:4px; text-align:right; }
+  input[type=range] { width:100%; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  button.act { border:2px solid var(--ink); background:#fff; color:var(--ink); padding:5px 11px; border-radius:5px; font-size:14px; cursor:pointer; }
+  button.act.on, button.act.fill { background:var(--maroon); border-color:var(--maroon); color:#fff; }
+  button.act.right { background:var(--ok); border-color:var(--ok); color:#fff; }
+  button.act.wrong { background:#fff; border-color:var(--bad); color:var(--bad); }
+  .chk { display:flex; align-items:center; gap:6px; font-size:14px; margin-top:8px; }
+  .case { font-size:15.5px; line-height:1.5; min-height:96px; }
+  .casehead { font-size:13px; color:var(--muted); margin-bottom:4px; }
+  svg.plot { width:100%; height:auto; display:block; }
+  .stats { font-size:14px; line-height:1.55; margin-top:6px; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .note { margin-top:8px; padding:7px 10px; border-radius:4px; font-size:13.5px; background:#EEF6F0; color:var(--ok); line-height:1.4; }
+  .note.warn { background:#FFF7E0; color:#7A5C00; }
+  .note.info { background:var(--tint); color:var(--ink); }
+  .note.bad { background:#FBEAEA; color:var(--bad); }
+  .small { font-size:12.5px; color:var(--muted); margin:6px 0 0; line-height:1.4; }
+  .dots { display:flex; gap:5px; margin-top:8px; flex-wrap:wrap; }
+  .dots span { width:18px; height:18px; border-radius:50%; border:2px solid var(--line); display:inline-block; font-size:11px; text-align:center; line-height:14px; color:var(--muted); cursor:pointer; }
+  .dots span.cur { border-color:var(--ink); }
+  .dots span.ok { background:var(--ok); border-color:var(--ok); color:#fff; }
+  .dots span.no { background:#fff; border-color:var(--bad); color:var(--bad); }
+  .credit { color:var(--muted); font-size:12px; padding:8px 16px 12px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="tabs" role="tablist">
+  <button type="button" data-t="sort" role="tab">1. Model, shadow or twin?</button>
+  <button type="button" data-t="sync" role="tab">2. How often to sync</button>
+</div>
+
+<!-- TOOL 1: classify cases -->
+<section class="tool" id="t-sort" role="tabpanel">
+  <h2>Model, shadow or twin?</h2>
+  <p class="hint">Eight systems from a fab. For each one, decide how data flow between the real system and its virtual copy, and choose its class in the Kritzinger classification. The answer explains the data flows and the level of coupling.</p>
+  <div class="grid">
+    <div class="box">
+      <h3 id="caseN">Case 1 of 8</h3>
+      <div class="case" id="caseText"></div>
+      <div class="row" id="choices">
+        <button type="button" class="act" data-c="model">Digital model</button>
+        <button type="button" class="act" data-c="shadow">Digital shadow</button>
+        <button type="button" class="act" data-c="twin">Digital twin</button>
+      </div>
+      <div class="row">
+        <button type="button" class="act" id="prevCase">◀ Previous</button>
+        <button type="button" class="act fill" id="nextCase">Next case ▶</button>
+      </div>
+      <div class="dots" id="dots" aria-label="Your answers so far"></div>
+      <p class="small" id="score"></p>
+    </div>
+    <div class="box">
+      <h3>Data flows</h3>
+      <svg class="plot" id="flow" viewBox="0 0 520 210" role="img" aria-label="Data flows between the physical system and its digital copy"></svg>
+      <div class="note info" id="msgSort">Choose a class to see the answer.</div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOL 2: update interval -->
+<section class="tool" id="t-sync" role="tabpanel">
+  <h2>How often should the twin sync with the furnace?</h2>
+  <p class="hint">A simulated furnace run from 7 to 30 minutes after the push, with a disturbance the model does not know about. The twin predicts each reading with the first-order model and corrects itself at every update. Change how often it updates and how strongly.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Settings</h3>
+      <label for="ev">Update every (s) <input type="number" id="evN" min="10" max="300" step="10" value="10" aria-label="Seconds between updates"></label>
+      <input type="range" id="ev" min="10" max="300" step="10" value="10">
+      <label for="gn">Gain <input type="number" id="gnN" min="0" max="1" step="0.05" value="0.5" aria-label="Gain"></label>
+      <input type="range" id="gn" min="0" max="1" step="0.05" value="0.5">
+      <label for="sg">Noise σ (°C) <input type="number" id="sgN" min="0.1" max="1" step="0.05" value="0.45" aria-label="Noise sigma"></label>
+      <input type="range" id="sg" min="0.1" max="1" step="0.05" value="0.45">
+      <div class="chk"><input type="checkbox" id="dist" checked><label for="dist" style="margin:0">Disturbance after about 15 minutes</label></div>
+      <div class="row"><button type="button" class="act fill" id="newRun">New run</button></div>
+      <p class="small">The twin uses the run's own τ, as if it had been fitted perfectly. Ticks under the plot mark the updates; between them the twin runs on the model alone.</p>
+    </div>
+    <div class="box">
+      <h3>Readings and the twin</h3>
+      <svg class="plot" id="plotSync" viewBox="0 0 560 290" role="img" aria-label="Readings, the synced twin and the model alone"></svg>
+      <div class="stats" id="statsSync"></div>
+      <div class="note info" id="msgSync"></div>
+    </div>
+  </div>
+</section>
+
+<div class="credit">Module 1 explorer · Digital Twins for Semiconductor Manufacturing · SemiAcademy / ISEP-CSU · CC BY 4.0. Classification after Kritzinger et al. (2018). Every value in part 2 is simulated with the course's furnace model: warm-up from 800 °C toward 1000 °C with τ between 120 and 190 s, readings every 10 s.</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  function sv(svg, tag, at, txt) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (txt !== undefined) e.textContent = txt; svg.appendChild(e); return e; }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function f(v, d) { return v.toFixed(d); }
+
+  // ---------------------------------------------------------------- tabs
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs button'));
+  function openTab(t) {
+    tabs.forEach(function (b) { b.classList.toggle('on', b.dataset.t === t); });
+    document.querySelectorAll('.tool').forEach(function (s) { s.classList.toggle('on', s.id === 't-' + t); });
+  }
+  tabs.forEach(function (b) { b.onclick = function () { openTab(b.dataset.t); }; });
+  function fromHash() { openTab(location.hash.indexOf('sync') >= 0 ? 'sync' : 'sort'); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // ---------------------------------------------------------------- tool 1: cases
+  var NAMES = { model: 'digital model', shadow: 'digital shadow', twin: 'digital twin' };
+  var CASES = [
+    { t: 'An engineer keeps a spreadsheet model of the furnace. At the end of each shift she types in the shift\'s average zone temperatures, and if the predicted oxide thickness looks off, she changes the recipe by hand.',
+      a: 'model', inn: 'manual', out: 'manual',
+      why: 'Data reach the spreadsheet only when a person types them in, and changes reach the furnace only by hand: manual in both directions. The engineer still makes decisions with it, but the model itself is not connected to the furnace.' },
+    { t: 'A dashboard model of the furnace reads the zone thermocouples every 10 s and predicts the oxide thickness of the running batch. An engineer watches it and changes the recipe by hand when the forecast drifts.',
+      a: 'shadow', inn: 'automatic', out: 'manual',
+      why: 'Data flow in automatically, every 10 s; nothing flows back automatically. In the course\'s terms this is level 2: the twin\'s predictions support a person\'s decision.' },
+    { t: 'The same dashboard model, but now its forecast sets the oxidation time of the next run automatically, within limits the engineer has set. The engineer can still override it.',
+      a: 'twin', inn: 'automatic', out: 'automatic',
+      why: 'Data flow automatically in both directions: readings in, recipe changes out. That is level 3, a controller acting on the twin\'s predictions; the override keeps a person in the loop, as most real systems do.' },
+    { t: 'Before a new furnace is installed, the equipment team builds a detailed thermal simulation of it to plan the installation and the first recipes.',
+      a: 'model', inn: 'none', out: 'none',
+      why: 'There is no physical furnace yet to exchange data with, so no data flow at all: a digital model. Once the furnace runs and the simulation is fed its data, it can become part of a shadow or a twin.' },
+    { t: 'A virtual metrology model runs automatically on the sensor traces of every furnace run and stores a predicted oxide thickness for each wafer in a database. Nobody acts on the predictions yet.',
+      a: 'shadow', inn: 'automatic', out: 'none',
+      why: 'Data flow in automatically from every run, and nothing flows back: a digital shadow at level 1, a twin that updates from observations. Module 4 builds a model like this one.' },
+    { t: 'A simulation of the line of three tools is loaded automatically every night from the manufacturing execution system with the day\'s work in progress. Next morning an engineer uses it to choose when to take the furnace down for maintenance.',
+      a: 'shadow', inn: 'automatic', out: 'manual',
+      why: 'Data flow in automatically, but only once a day, and decisions go back by hand: a digital shadow at level 2. The Consortium\'s definition allows a daily update frequency if that is enough for the use; Module 6 builds a toolset model like this.' },
+    { t: 'The prototype you build in the Module 1 lab: each thermocouple reading, every 10 s, corrects the twin\'s predicted zone temperature. Nothing is sent back to the furnace.',
+      a: 'shadow', inn: 'automatic', out: 'none',
+      why: 'Readings flow in automatically and correct the twin; nothing flows back: a digital shadow at level 1. Module 5 adds the decision and control levels.' },
+    { t: 'A furnace twin compares the heater power it predicts with the power measured. When it detects a drifting heater element, it puts the furnace on hold automatically and opens a maintenance work order.',
+      a: 'twin', inn: 'automatic', out: 'automatic',
+      why: 'Data flow in automatically, and the twin acts on the furnace automatically: a digital twin at level 3. Whether it should act on its own depends on how far its predictions can be trusted, which Modules 5 and 7 test.' }
+  ];
+  var cur = 0, picks = CASES.map(function () { return null; });
+  function drawFlow(c, show) {
+    var svg = $('flow'); clear(svg);
+    sv(svg, 'defs', {}).innerHTML = '<marker id="fa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#99004C"/></marker>' +
+      '<marker id="fm" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#6A626B"/></marker>';
+    sv(svg, 'rect', { x: 8, y: 50, width: 130, height: 100, rx: 8, fill: '#fff', stroke: '#E4DCE0', 'stroke-width': 2 });
+    sv(svg, 'text', { x: 73, y: 106, 'text-anchor': 'middle', 'font-size': 15, fill: '#24313D' }, 'real system');
+    sv(svg, 'rect', { x: 382, y: 50, width: 130, height: 100, rx: 8, fill: '#FBF3F7', stroke: '#99004C', 'stroke-width': 2 });
+    sv(svg, 'text', { x: 447, y: 106, 'text-anchor': 'middle', 'font-size': 15, fill: '#24313D' }, 'virtual copy');
+    function arrow(y, x1, x2, kind, label) {
+      if (kind === 'none') { sv(svg, 'text', { x: 260, y: y + 4, 'text-anchor': 'middle', 'font-size': 13, fill: '#6A626B' }, label + ': no data flow'); return; }
+      var a = kind === 'automatic';
+      sv(svg, 'line', { x1: x1, y1: y, x2: x2, y2: y, stroke: a ? '#99004C' : '#6A626B', 'stroke-width': 2.5, 'stroke-dasharray': a ? '' : '7 6', 'marker-end': a ? 'url(#fa)' : 'url(#fm)' });
+      sv(svg, 'text', { x: 260, y: y - 8, 'text-anchor': 'middle', 'font-size': 13, fill: a ? '#99004C' : '#6A626B' }, label + ': ' + kind);
+    }
+    if (!show) {
+      sv(svg, 'text', { x: 260, y: 104, 'text-anchor': 'middle', 'font-size': 14, fill: '#6A626B' }, '?');
+      return;
+    }
+    arrow(82, 145, 375, c.inn, 'data in');
+    arrow(132, 375, 145, c.out, 'back to the system');
+    sv(svg, 'text', { x: 260, y: 192, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 600, fill: '#99004C' }, NAMES[c.a]);
+  }
+  function showCase() {
+    var c = CASES[cur], p = picks[cur];
+    $('caseN').textContent = 'Case ' + (cur + 1) + ' of ' + CASES.length;
+    $('caseText').textContent = c.t;
+    document.querySelectorAll('#choices button').forEach(function (b) {
+      b.classList.remove('right', 'wrong', 'on');
+      if (p && b.dataset.c === c.a) b.classList.add('right');
+      else if (p && b.dataset.c === p) b.classList.add('wrong');
+    });
+    drawFlow(c, !!p);
+    var m = $('msgSort');
+    if (!p) { m.className = 'note info'; m.textContent = 'Choose a class to see the answer.'; }
+    else if (p === c.a) { m.className = 'note'; m.textContent = 'Right: a ' + NAMES[c.a] + '. ' + c.why; }
+    else { m.className = 'note bad'; m.textContent = 'Not quite: this is a ' + NAMES[c.a] + ', not a ' + NAMES[p] + '. ' + c.why; }
+    var dots = $('dots'); dots.innerHTML = '';
+    picks.forEach(function (q, i) {
+      var d = document.createElement('span'); d.textContent = i + 1; d.title = 'Case ' + (i + 1);
+      if (q) d.className = q === CASES[i].a ? 'ok' : 'no';
+      if (i === cur) d.className += ' cur';
+      d.onclick = function () { cur = i; showCase(); };
+      dots.appendChild(d);
+    });
+    var done = picks.filter(Boolean).length, right = picks.filter(function (q, i) { return q === CASES[i].a; }).length;
+    $('score').textContent = done ? ('First answers right: ' + right + ' of ' + done + ' answered.') : 'Your first answer to each case counts toward the score.';
+    $('prevCase').disabled = cur === 0; $('nextCase').disabled = cur === CASES.length - 1;
+  }
+  document.querySelectorAll('#choices button').forEach(function (b) {
+    b.onclick = function () { if (!picks[cur]) picks[cur] = b.dataset.c; showCase(); };
+  });
+  $('prevCase').onclick = function () { if (cur > 0) { cur--; showCase(); } };
+  $('nextCase').onclick = function () { if (cur < CASES.length - 1) { cur++; showCase(); } };
+  showCase();
+
+  // ---------------------------------------------------------------- tool 2: sync interval
+  var SET = 1000, LOAD = 800, STEP = 10, DUR = 1800, FIT_END = 600, T_START = 420;
+  function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function gauss(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function dip(s) { var a = 40, b = 240, sp = a * Math.log((a + b) / a), pk = (1 - Math.exp(-sp / a)) * Math.exp(-sp / b); return s > 0 ? (1 - Math.exp(-s / a)) * Math.exp(-s / b) / pk : 0; }
+  var seed = 7, run;
+  function makeRun() {
+    var r = rng(seed), tau = 120 + 70 * r(), td = 10 * (84 + Math.floor(24 * r())), depth = 8 + 8 * r(), t = [], base = [], dp = [], e = [];
+    for (var s = 0; s <= DUR; s += STEP) { t.push(s); base.push(SET - (SET - LOAD) * Math.exp(-s / tau)); dp.push(depth * dip(s - td)); e.push(gauss(r)); }
+    run = { tau: tau, td: td, depth: depth, t: t, base: base, dp: dp, e: e };
+  }
+  function rms(a) { var s = 0, n = 0; a.forEach(function (v) { s += v * v; n++; }); return Math.sqrt(s / n); }
+  function simulate(every, gain, sigma, withDist) {
+    var y = run.t.map(function (s, i) { return Math.round((run.base[i] - (withDist ? run.dp[i] : 0) + sigma * run.e[i]) * 100) / 100; });
+    var a = Math.exp(-STEP / run.tau), T = LOAD, Tm = LOAD, pred = [], model = [], ups = [];
+    var k = Math.round(every / STEP);
+    for (var i = 0; i < y.length; i++) {
+      if (i > 0) { T = SET + (T - SET) * a; Tm = SET + (Tm - SET) * a; }
+      pred.push(T); model.push(Tm);
+      if (gain > 0 && i % k === 0) { T = T + gain * (y[i] - T); ups.push(run.t[i]); }
+    }
+    return { y: y, pred: pred, model: model, ups: ups };
+  }
+  function draw2() {
+    var every = parseInt($('ev').value, 10), gain = parseFloat($('gn').value), sigma = parseFloat($('sg').value), withDist = $('dist').checked;
+    var res = simulate(every, gain, sigma, withDist), svg = $('plotSync'); clear(svg);
+    var X0 = 56, X1 = 548, Y0 = 238, Y1 = 26;
+    var idx = []; for (var i = 0; i < run.t.length; i++) if (run.t[i] >= T_START) idx.push(i);
+    var lo = 1003; idx.forEach(function (i) { lo = Math.min(lo, res.y[i], res.pred[i]); });
+    lo = Math.floor(lo - 1); var hi = 1003;
+    var X = function (s) { return X0 + (s - T_START) / (DUR - T_START) * (X1 - X0); }, Y = function (v) { return Y0 - (v - lo) / (hi - lo) * (Y0 - Y1); };
+    var stepY = (hi - lo) > 30 ? 10 : 5;
+    for (var v = Math.ceil(lo / stepY) * stepY; v <= hi; v += stepY) { sv(svg, 'line', { x1: X0, y1: Y(v), x2: X1, y2: Y(v), stroke: '#E4DCE0' }); sv(svg, 'text', { x: X0 - 6, y: Y(v) + 4, 'text-anchor': 'end', 'font-size': 11.5, fill: '#6A626B' }, String(v)); }
+    [600, 900, 1200, 1500, 1800].forEach(function (s) { sv(svg, 'text', { x: X(s), y: Y0 + 30, 'text-anchor': 'middle', 'font-size': 11.5, fill: '#6A626B' }, String(s)); });
+    sv(svg, 'line', { x1: X0, y1: Y0, x2: X1, y2: Y0, stroke: '#24313D', 'stroke-width': 1.5 });
+    sv(svg, 'text', { x: (X0 + X1) / 2, y: Y0 + 47, 'text-anchor': 'middle', 'font-size': 12, fill: '#6A626B' }, 'time since push (s)');
+    sv(svg, 'text', { x: 12, y: (Y0 + Y1) / 2, 'text-anchor': 'middle', 'font-size': 12, fill: '#6A626B', transform: 'rotate(-90 12 ' + (Y0 + Y1) / 2 + ')' }, 'zone temperature (°C)');
+    idx.forEach(function (i) { sv(svg, 'circle', { cx: X(run.t[i]), cy: Y(res.y[i]), r: 2.4, fill: '#24313D', 'fill-opacity': 0.7 }); });
+    function poly(arr, color, w, dash) { sv(svg, 'polyline', { points: idx.map(function (i) { return X(run.t[i]).toFixed(1) + ',' + Y(arr[i]).toFixed(1); }).join(' '), fill: 'none', stroke: color, 'stroke-width': w, 'stroke-dasharray': dash || '' }); }
+    poly(res.model, '#6A626B', 1.5, '5 4');
+    if (gain > 0) poly(res.pred, '#99004C', 2.5);
+    res.ups.forEach(function (s) { if (s >= T_START) sv(svg, 'line', { x1: X(s), y1: Y0 + 2, x2: X(s), y2: Y0 + 9, stroke: '#99004C', 'stroke-width': 1.5 }); });
+    sv(svg, 'circle', { cx: X0 + 10, cy: 12, r: 3, fill: '#24313D' }); sv(svg, 'text', { x: X0 + 18, y: 16, 'font-size': 12, fill: '#24313D' }, 'readings');
+    sv(svg, 'line', { x1: X0 + 84, y1: 12, x2: X0 + 102, y2: 12, stroke: '#6A626B', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' }); sv(svg, 'text', { x: X0 + 108, y: 16, 'font-size': 12, fill: '#6A626B' }, 'model alone');
+    if (gain > 0) { sv(svg, 'line', { x1: X0 + 196, y1: 12, x2: X0 + 214, y2: 12, stroke: '#99004C', 'stroke-width': 2.5 }); sv(svg, 'text', { x: X0 + 220, y: 16, 'font-size': 12, fill: '#99004C' }, 'synced twin'); }
+    var eT = [], eM = [], eTe = [], eMe = [], maxT = 0;
+    for (i = 0; i < run.t.length; i++) {
+      var dT = res.y[i] - res.pred[i], dM = res.y[i] - res.model[i];
+      if (run.t[i] >= FIT_END) { eT.push(dT); eM.push(dM); maxT = Math.max(maxT, Math.abs(dT)); } else { eTe.push(dT); eMe.push(dM); }
+    }
+    var rT = rms(eT), rM = rms(eM), rTe = rms(eTe), rMe = rms(eMe);
+    $('statsSync').innerHTML = 'RMS error from 600 s on: synced twin <b class="mono">' + f(rT, 2) + ' °C</b>, model alone <b class="mono">' + f(rM, 2) + ' °C</b><br>' +
+      'RMS error before 600 s: synced twin <b class="mono">' + f(rTe, 2) + ' °C</b>, model alone <b class="mono">' + f(rMe, 2) + ' °C</b><br>' +
+      'Largest error of the twin from 600 s on: <b class="mono">' + f(maxT, 1) + ' °C</b> · updates: <b class="mono">' + res.ups.length + '</b>';
+    var msg, cls = 'note info';
+    if (gain === 0) { msg = 'With gain 0 the twin never uses a reading, so it is the model alone: nothing flows from the furnace into it, and its error grows through the dip.'; }
+    else if (!withDist) {
+      msg = 'Without the disturbance the model is right, so syncing has nothing to correct. The synced twin\'s error from 600 s on is ' + (rT > rM ? 'a little larger than' : 'about the same as') + ' the model\'s (' + f(rT, 2) + ' against ' + f(rM, 2) + ' °C): each update carries some of the reading\'s noise into the twin.';
+    } else if (every <= 10) {
+      msg = 'Updating with every reading, the twin follows the dip: its RMS error from 600 s on is ' + f(rT, 2) + ' °C, against ' + f(rM, 2) + ' °C for the model alone. Try a longer interval.'; cls = 'note';
+    } else {
+      msg = 'Updating every ' + every + ' s, the twin\'s RMS error from 600 s on is ' + f(rT, 2) + ' °C (model alone ' + f(rM, 2) + ' °C). Between updates it runs on the model alone, so during the dip it drifts back toward the model\'s curve until the next update pulls it in again.';
+      cls = 'note warn';
+    }
+    $('msgSync').className = cls; $('msgSync').textContent = msg;
+  }
+  function pair(range, num, cb) {
+    range.addEventListener('input', function () { num.value = range.value; cb(); });
+    num.addEventListener('change', function () {
+      var v = parseFloat(num.value), lo = parseFloat(range.min), hi = parseFloat(range.max), st = parseFloat(range.step);
+      if (isNaN(v)) v = parseFloat(range.value);
+      v = Math.min(hi, Math.max(lo, Math.round(v / st) * st)); v = Math.round(v * 100) / 100;
+      num.value = v; range.value = v; cb();
+    });
+  }
+  pair($('ev'), $('evN'), draw2); pair($('gn'), $('gnN'), draw2); pair($('sg'), $('sgN'), draw2);
+  $('dist').onchange = draw2;
+  $('newRun').onclick = function () { seed += 1; makeRun(); draw2(); };
+  makeRun(); draw2();
+})();
+</script>
+</body>
+</html>
