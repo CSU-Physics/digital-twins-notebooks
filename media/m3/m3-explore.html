@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module 3 Explorer: Oxide Growth and Prediction Bands</title>
+<style>
+  :root { --maroon:#99004C; --ink:#24313D; --muted:#6A626B; --line:#E4DCE0; --tint:#F8F4F6; --ok:#2E7D4F; --bad:#B3261E; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:"Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:15px; }
+  .tabs { display:flex; border-bottom:2px solid var(--line); background:var(--tint); }
+  .tabs button { flex:1; border:0; background:none; padding:10px 8px; font-size:15px; cursor:pointer; color:var(--muted); border-bottom:3px solid transparent; }
+  .tabs button.on { color:var(--maroon); border-bottom-color:var(--maroon); font-weight:600; background:#fff; }
+  .tool { display:none; padding:12px 16px; }
+  .tool.on { display:block; }
+  h2 { font-family:Georgia, serif; color:var(--maroon); font-size:19px; margin:0 0 4px; }
+  .hint { color:var(--muted); margin:0 0 10px; line-height:1.45; }
+  .grid { display:grid; grid-template-columns: 290px 1fr; gap:14px; align-items:start; }
+  @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+  .box { border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:0; }
+  .box h3 { margin:0 0 6px; font-size:14.5px; color:var(--maroon); }
+  label { display:flex; justify-content:space-between; align-items:center; margin:8px 0 2px; font-size:14px; gap:8px; }
+  label input[type=number] { width:74px; font-size:14px; padding:2px 4px; border:1px solid var(--line); border-radius:4px; text-align:right; }
+  input[type=range] { width:100%; }
+  select { font-size:14px; padding:2px 4px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  .seg { display:flex; gap:0; margin-top:6px; }
+  .seg button { flex:1; border:2px solid var(--ink); background:#fff; color:var(--ink); padding:4px 8px; font-size:13.5px; cursor:pointer; }
+  .seg button + button { border-left:0; }
+  .seg button.on { background:var(--maroon); border-color:var(--maroon); color:#fff; }
+  button.act { border:2px solid var(--ink); background:#fff; color:var(--ink); padding:5px 11px; border-radius:5px; font-size:14px; cursor:pointer; }
+  .chk { display:flex; align-items:center; gap:6px; font-size:14px; margin-top:8px; justify-content:flex-start; }
+  svg.plot { width:100%; height:auto; display:block; }
+  .stats { font-size:14px; line-height:1.55; margin-top:6px; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .note { margin-top:8px; padding:7px 10px; border-radius:4px; font-size:13.5px; background:#EEF6F0; color:var(--ok); line-height:1.45; }
+  .note.warn { background:#FFF7E0; color:#7A5C00; }
+  .note.info { background:var(--tint); color:var(--ink); }
+  .note.bad { background:#FBEAEA; color:var(--bad); }
+  .small { font-size:12.5px; color:var(--muted); margin:6px 0 0; line-height:1.4; }
+  .credit { color:var(--muted); font-size:12px; padding:8px 16px 12px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="tabs" role="tablist">
+  <button type="button" data-t="grow" role="tab">1. Oxide growth</button>
+  <button type="button" data-t="bands" role="tab">2. Calibration and bands</button>
+</div>
+
+<!-- TOOL 1: growth -->
+<section class="tool" id="t-grow" role="tabpanel">
+  <h2>How fast does oxide grow?</h2>
+  <p class="hint">The Deal-Grove model with Deal and Grove's textbook constants. Change the temperature, the ambient, the wafer orientation and the starting oxide. The squares are simulated measurements from the course's furnace, which, like real dry oxidation, grows faster than the model while the oxide is thinner than about 20 nm.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Settings</h3>
+      <label for="tc">Temperature (°C) <input type="number" id="tcN" min="800" max="1200" step="10" value="1000" aria-label="Temperature in degrees C"></label>
+      <input type="range" id="tc" min="800" max="1200" step="10" value="1000">
+      <label for="th">Oxidation time (hours) <input type="number" id="thN" min="0.5" max="10" step="0.5" value="4" aria-label="Oxidation time in hours"></label>
+      <input type="range" id="th" min="0.5" max="10" step="0.5" value="4">
+      <label for="xi">Starting oxide x_i (nm) <input type="number" id="xiN" min="0" max="100" step="1" value="0" aria-label="Starting oxide in nm"></label>
+      <input type="range" id="xi" min="0" max="100" step="1" value="0">
+      <div class="seg" id="amb" aria-label="Ambient"><button type="button" data-v="dry" class="on">dry O₂</button><button type="button" data-v="wet">wet (H₂O)</button></div>
+      <div class="seg" id="ori" aria-label="Wafer orientation"><button type="button" data-v="100" class="on">(100) wafer</button><button type="button" data-v="111">(111) wafer</button></div>
+      <label class="chk"><input type="checkbox" id="lim" checked> show the linear and parabolic limits</label>
+      <label class="chk"><input type="checkbox" id="pts" checked> show simulated measurements</label>
+    </div>
+    <div class="box">
+      <h3>Thickness against time</h3>
+      <svg class="plot" id="growSvg" viewBox="0 0 560 300" role="img" aria-label="Oxide thickness against time from the Deal-Grove model, with simulated measurements"></svg>
+      <div class="stats" id="statsGrow"></div>
+      <div class="note info" id="msgGrow"></div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOL 2: bands -->
+<section class="tool" id="t-bands" role="tabpanel">
+  <h2>Calibrate, then predict with two bands</h2>
+  <p class="hint">Simulated calibration runs at 1000 °C in dry O₂ on wafers with a 25 nm starting oxide, measured with a known standard deviation σ. The explorer fits B and B/A by weighted least squares, as the lab's helper does, and draws the 95% confidence band for the predicted mean and the 95% prediction band for one new measurement. Here the simulated furnace follows the Deal-Grove model exactly, so only noise and the choice of runs matter.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Calibration design</h3>
+      <label for="nr">Number of runs <input type="number" id="nrN" min="3" max="24" step="1" value="12" aria-label="Number of calibration runs"></label>
+      <input type="range" id="nr" min="3" max="24" step="1" value="12">
+      <label for="sg">Measurement σ (nm) <input type="number" id="sgN" min="0.1" max="3" step="0.1" value="0.5" aria-label="Measurement standard deviation in nm"></label>
+      <input type="range" id="sg" min="0.1" max="3" step="0.1" value="0.5">
+      <label for="tl">Longest run (min) <input type="number" id="tlN" min="60" max="900" step="30" value="480" aria-label="Longest calibration run in minutes"></label>
+      <input type="range" id="tl" min="60" max="900" step="30" value="480">
+      <label for="tp">Predict at (min) <input type="number" id="tpN" min="0" max="1440" step="10" value="270" aria-label="Prediction time in minutes"></label>
+      <input type="range" id="tp" min="0" max="1440" step="10" value="270">
+      <div class="row"><button type="button" class="act" id="newData">New measurements</button></div>
+      <p class="small">The runs are spread evenly from 30 minutes to the longest run.</p>
+    </div>
+    <div class="box">
+      <h3>Fit and bands</h3>
+      <svg class="plot" id="bandSvg" viewBox="0 0 560 300" role="img" aria-label="Calibration measurements, the fitted model, the confidence band and the prediction band"></svg>
+      <div class="stats" id="statsBand"></div>
+      <div class="note info" id="msgBand"></div>
+    </div>
+  </div>
+</section>
+
+<div class="credit">Module 3 explorer · Digital Twins for Semiconductor Manufacturing · SemiAcademy / ISEP-CSU · CC BY 4.0. Model: B. E. Deal and A. S. Grove, J. Appl. Phys. 36, 3770 (1965), with their rate constants (B/A divided by 1.68 for (100) wafers). Every measurement shown is simulated.</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  function sv(svg, tag, at, txt) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (txt !== undefined) e.textContent = txt; svg.appendChild(e); return e; }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function f(v, d) { var s = v.toFixed(d); return (s === '-' + (0).toFixed(d)) ? (0).toFixed(d) : s; }
+  function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function gauss(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function pair(range, num, cb) {
+    range.addEventListener('input', function () { num.value = range.value; cb(); });
+    num.addEventListener('change', function () {
+      var v = parseFloat(num.value), lo = parseFloat(range.min), hi = parseFloat(range.max), st = parseFloat(range.step);
+      if (isNaN(v)) v = parseFloat(range.value);
+      v = Math.min(hi, Math.max(lo, Math.round(v / st) * st)); v = Math.round(v * 100) / 100;
+      num.value = v; range.value = v; cb();
+    });
+  }
+  function seg(id, cb) {
+    var bs = Array.prototype.slice.call($(id).querySelectorAll('button'));
+    bs.forEach(function (b) { b.onclick = function () { bs.forEach(function (c) { c.classList.toggle('on', c === b); }); cb(); }; });
+    return function () { return $(id).querySelector('button.on').dataset.v; };
+  }
+
+  // ---------------------------------------------------------------- tabs
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs button'));
+  function openTab(t) {
+    tabs.forEach(function (b) { b.classList.toggle('on', b.dataset.t === t); });
+    document.querySelectorAll('.tool').forEach(function (s) { s.classList.toggle('on', s.id === 't-' + t); });
+  }
+  tabs.forEach(function (b) { b.onclick = function () { openTab(b.dataset.t); }; });
+  function fromHash() { openTab(location.hash.indexOf('bands') >= 0 ? 'bands' : 'grow'); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // ---------------------------------------------------------------- the model (nm and minutes)
+  var KB = 8.617333e-5;
+  function rates(Tc, amb, ori) {
+    var T = Tc + 273.15, c1, e1, c2, e2;
+    if (amb === 'dry') { c1 = 7.72e2; e1 = 1.23; c2 = 6.23e6; e2 = 2.00; } else { c1 = 3.86e2; e1 = 0.78; c2 = 1.63e8; e2 = 2.05; }
+    if (ori === '100') c2 = c2 / 1.68;
+    return { B: c1 * Math.exp(-e1 / (KB * T)) * 1e6 / 60, BA: c2 * Math.exp(-e2 / (KB * T)) * 1e3 / 60 };
+  }
+  function tauOf(xi, B, BA) { var A = B / BA; return (xi * xi + A * xi) / B; }
+  function dg(t, B, BA, xi) { var A = B / BA; return A / 2 * (Math.sqrt(1 + 4 * B * (t + tauOf(xi, B, BA)) / (A * A)) - 1); }
+
+  // ---------------------------------------------------------------- tool 1: growth
+  var getAmb = seg('amb', draw1), getOri = seg('ori', draw1);
+  function simulated(Tc, amb, ori, xi, tmax) {
+    // the course's simulator: Deal-Grove plus extra early growth C exp(-x/L) in dry O2, measured with sigma 0.5 nm
+    var r = rates(Tc, amb, ori), A = r.B / r.BA, L = 7.0;
+    var C = amb === 'dry' ? 1.5 * Math.exp(-2.2 / KB * (1 / (Tc + 273.15) - 1 / 1273.15)) : 0;
+    var rate = function (x) { return r.B / (2 * x + A) + C * Math.exp(-x / L); };
+    var times = [], n = 8; for (var i = 1; i <= n; i++) times.push(tmax * i / n);
+    var h = Math.max(tmax / 4000, 0.01), x = xi, t = 0, out = [], k = 0, g = rng(7 + Math.round(Tc) + (amb === 'dry' ? 0 : 1000) + Math.round(xi) * 13);
+    while (k < times.length) {
+      if (t + h >= times[k]) { var hh = times[k] - t; x = step(x, hh); t = times[k]; out.push([t, x + 0.5 * gauss(g)]); k++; continue; }
+      x = step(x, h); t += h;
+    }
+    function step(x0, hs) { var k1 = rate(x0), k2 = rate(x0 + hs / 2 * k1), k3 = rate(x0 + hs / 2 * k2), k4 = rate(x0 + hs * k3); return x0 + hs / 6 * (k1 + 2 * k2 + 2 * k3 + k4); }
+    return out;
+  }
+  function draw1() {
+    var Tc = parseFloat($('tc').value), hrs = parseFloat($('th').value), xi = parseFloat($('xi').value), amb = getAmb(), ori = getOri();
+    var r = rates(Tc, amb, ori), A = r.B / r.BA, tau = tauOf(xi, r.B, r.BA), tmax = hrs * 60;
+    var xEnd = dg(tmax, r.B, r.BA, xi);
+    var pts = $('pts').checked ? simulated(Tc, amb, ori, xi, tmax) : [];
+    var hi = xEnd; pts.forEach(function (p) { hi = Math.max(hi, p[1]); }); hi = niceMax(hi * 1.1);
+    var svg = $('growSvg'); clear(svg);
+    var X0 = 58, X1 = 548, Y0 = 250, Y1 = 14;
+    var X = function (t) { return X0 + t / tmax * (X1 - X0); }, Y = function (v) { return Y0 - v / hi * (Y0 - Y1); };
+    ticks(hi).forEach(function (v) {
+      sv(svg, 'line', { x1: X0, y1: Y(v), x2: X1, y2: Y(v), stroke: '#E4DCE0' });
+      sv(svg, 'text', { x: X0 - 6, y: Y(v) + 4, 'text-anchor': 'end', 'font-size': 11.5, fill: '#6A626B' }, String(v));
+    });
+    for (var i = 0; i <= 5; i++) { var tt = tmax * i / 5; sv(svg, 'text', { x: X(tt), y: Y0 + 16, 'text-anchor': 'middle', 'font-size': 11.5, fill: '#6A626B' }, f(tt / 60, tt / 60 % 1 ? 1 : 0)); }
+    sv(svg, 'line', { x1: X0, y1: Y0, x2: X1, y2: Y0, stroke: '#24313D', 'stroke-width': 1.5 });
+    sv(svg, 'text', { x: (X0 + X1) / 2, y: Y0 + 34, 'text-anchor': 'middle', 'font-size': 12.5, fill: '#6A626B' }, 'time (hours)');
+    sv(svg, 'text', { x: 12, y: (Y0 + Y1) / 2, 'text-anchor': 'middle', 'font-size': 12.5, fill: '#6A626B', transform: 'rotate(-90 12 ' + ((Y0 + Y1) / 2) + ')' }, 'oxide thickness (nm)');
+    var N = 160, curve = [], lin = [], par = [];
+    for (i = 0; i <= N; i++) {
+      var t = tmax * i / N, x = dg(t, r.B, r.BA, xi);
+      curve.push(X(t).toFixed(1) + ',' + Y(x).toFixed(1));
+      var xl = r.BA * (t + tau), xp = Math.sqrt(r.B * (t + tau));
+      if (xl <= hi) lin.push(X(t).toFixed(1) + ',' + Y(xl).toFixed(1));
+      if (xp <= hi) par.push(X(t).toFixed(1) + ',' + Y(xp).toFixed(1));
+    }
+    if ($('lim').checked) {
+      if (lin.length > 1) sv(svg, 'polyline', { points: lin.join(' '), fill: 'none', stroke: '#6A626B', 'stroke-width': 1.6, 'stroke-dasharray': '7 5' });
+      if (par.length > 1) sv(svg, 'polyline', { points: par.join(' '), fill: 'none', stroke: '#24313D', 'stroke-width': 1.6, 'stroke-dasharray': '2 4' });
+    }
+    sv(svg, 'polyline', { points: curve.join(' '), fill: 'none', stroke: '#99004C', 'stroke-width': 3 });
+    pts.forEach(function (p) { sv(svg, 'rect', { x: X(p[0]) - 4, y: Y(p[1]) - 4, width: 8, height: 8, fill: '#24313D' }); });
+    var lx = X0 + 12, ly = Y1 + 12;
+    [['#99004C', 'Deal-Grove model', ''], ['#6A626B', 'linear limit (B/A)(t + τ)', '7 5'], ['#24313D', 'parabolic limit √(B(t + τ))', '2 4']].forEach(function (L, k) {
+      if (k > 0 && !$('lim').checked) return;
+      sv(svg, 'line', { x1: lx, y1: ly + k * 16 - 4, x2: lx + 24, y2: ly + k * 16 - 4, stroke: L[0], 'stroke-width': k ? 1.6 : 3, 'stroke-dasharray': L[2] });
+      sv(svg, 'text', { x: lx + 30, y: ly + k * 16, 'font-size': 11.5, fill: '#24313D' }, L[1]);
+    });
+    var regime = xEnd < 0.3 * A ? 'mostly linear (reaction-limited)' : xEnd > 3 * A ? 'mostly parabolic (diffusion-limited)' : 'between the two limits';
+    $('statsGrow').innerHTML = 'B = <b class="mono">' + f(r.B, 1) + ' nm²/min</b> · B/A = <b class="mono">' + f(r.BA, 3) + ' nm/min</b> · A = <b class="mono">' + f(A, 0) + ' nm</b> · τ = <b class="mono">' + f(tau, 1) + ' min</b><br>' +
+      'After ' + f(hrs, 1) + ' h: <b class="mono">' + f(xEnd, 1) + ' nm</b>, so x/A = ' + f(xEnd / A, 2) + ': ' + regime;
+    var m = $('msgGrow'), early = pts.length ? pts[0] : null;
+    if (amb === 'dry' && xi < 20 && early && early[1] - dg(early[0], r.B, r.BA, xi) > 1.5) {
+      m.className = 'note warn';
+      m.textContent = 'Thin-oxide regime: starting from ' + f(xi, 0) + ' nm, the simulated dry oxide grows faster than the model at first; the first measurement is ' + f(early[1] - dg(early[0], r.B, r.BA, xi), 1) + ' nm above the curve. Raise the starting oxide above about 20 nm and the gap disappears.';
+    } else if (amb === 'wet') {
+      m.className = 'note info';
+      m.textContent = 'Wet oxidation: water is far more soluble in the oxide than oxygen, so B is much larger and growth is fast. At ' + f(Tc, 0) + ' °C, ' + f(hrs, 1) + ' h of steam grows ' + f(xEnd, 0) + ' nm, against ' + f(dg(tmax, rates(Tc, 'dry', ori).B, rates(Tc, 'dry', ori).BA, xi), 0) + ' nm dry.';
+    } else {
+      m.className = 'note info';
+      m.textContent = 'Try 900 and 1100 °C: B and B/A follow Arrhenius laws, so 100 °C changes the thickness by a large factor. Switch to (111) wafers: only B/A changes (it is 1.68 times larger), so thin oxides grow faster and thick ones barely differ.';
+    }
+  }
+  function niceMax(v) { var p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; }
+  function ticks(hi) { var st = hi / 5, out = []; for (var v = 0; v <= hi + 1e-9; v += st) out.push(Math.round(v * 10) / 10); return out; }
+  pair($('tc'), $('tcN'), draw1); pair($('th'), $('thN'), draw1); pair($('xi'), $('xiN'), draw1);
+  $('lim').onchange = draw1; $('pts').onchange = draw1;
+  draw1();
+
+  // ---------------------------------------------------------------- tool 2: calibration and bands
+  var XI = 25.0, TRUE = rates(1000, 'dry', '100'), seed2 = 3, Z = 1.96;
+  function design() {
+    var n = parseInt($('nr').value, 10), sig = parseFloat($('sg').value), tl = parseFloat($('tl').value);
+    var r = rng(seed2 * 7919 + n * 31 + Math.round(tl)), t = [], x = [];
+    for (var i = 0; i < n; i++) { var ti = n === 1 ? tl : 30 + (tl - 30) * i / (n - 1); t.push(ti); x.push(dg(ti, TRUE.B, TRUE.BA, XI) + sig * gauss(r)); }
+    return { t: t, x: x, sig: sig, tl: tl };
+  }
+  function grad(t, B, BA) {
+    var hB = 1e-6 * B, hA = 1e-6 * BA;
+    return [(dg(t, B + hB, BA, XI) - dg(t, B - hB, BA, XI)) / (2 * hB), (dg(t, B, BA + hA, XI) - dg(t, B, BA - hA, XI)) / (2 * hA)];
+  }
+  function fit(d) {
+    // Levenberg-Marquardt on (B, B/A), weights 1/sigma^2, then the covariance (J^T W J)^-1
+    var B = 0.9 * TRUE.B, BA = 1.1 * TRUE.BA, lam = 1e-3;
+    function cost(b, a) { var s = 0; for (var i = 0; i < d.t.length; i++) { var e = (d.x[i] - dg(d.t[i], b, a, XI)) / d.sig; s += e * e; } return s; }
+    var c = cost(B, BA);
+    for (var it = 0; it < 200; it++) {
+      var a11 = 0, a12 = 0, a22 = 0, g1 = 0, g2 = 0;
+      for (var i = 0; i < d.t.length; i++) { var g = grad(d.t[i], B, BA), e = d.x[i] - dg(d.t[i], B, BA, XI), w = 1 / (d.sig * d.sig);
+        a11 += w * g[0] * g[0]; a12 += w * g[0] * g[1]; a22 += w * g[1] * g[1]; g1 += w * g[0] * e; g2 += w * g[1] * e; }
+      var m11 = a11 * (1 + lam), m22 = a22 * (1 + lam), det = m11 * m22 - a12 * a12;
+      var dB = (m22 * g1 - a12 * g2) / det, dA = (m11 * g2 - a12 * g1) / det;
+      var nb = B + dB, na = BA + dA;
+      if (nb > 0 && na > 0 && cost(nb, na) < c) { B = nb; BA = na; var nc = cost(B, BA); lam = Math.max(lam / 3, 1e-9); if (Math.abs(c - nc) < 1e-12 * (1 + c)) { c = nc; break; } c = nc; }
+      else { lam *= 4; }
+    }
+    a11 = 0; a12 = 0; a22 = 0;
+    for (i = 0; i < d.t.length; i++) { g = grad(d.t[i], B, BA); w = 1 / (d.sig * d.sig); a11 += w * g[0] * g[0]; a12 += w * g[0] * g[1]; a22 += w * g[1] * g[1]; }
+    det = a11 * a22 - a12 * a12;
+    return { B: B, BA: BA, cov: [[a22 / det, -a12 / det], [-a12 / det, a11 / det]], chi2: c, dof: d.t.length - 2 };
+  }
+  function pred(F, t, sig) {
+    var x = dg(t, F.B, F.BA, XI), g = grad(t, F.B, F.BA), C = F.cov;
+    var vm = g[0] * g[0] * C[0][0] + 2 * g[0] * g[1] * C[0][1] + g[1] * g[1] * C[1][1];
+    return { x: x, sm: Math.sqrt(Math.max(vm, 0)), sp: Math.sqrt(Math.max(vm, 0) + sig * sig) };
+  }
+  function draw2() {
+    var d = design(), F = fit(d), tp = parseFloat($('tp').value), P = pred(F, tp, d.sig);
+    var svg = $('bandSvg'); clear(svg);
+    var X0 = 58, X1 = 548, Y0 = 250, Y1 = 14, TMAX = 1440, hi = 450;
+    var X = function (t) { return X0 + t / TMAX * (X1 - X0); }, Y = function (v) { return Y0 - v / hi * (Y0 - Y1); };
+    sv(svg, 'rect', { x: X(30), y: Y1, width: X(d.tl) - X(30), height: Y0 - Y1, fill: '#F8F4F6' });
+    sv(svg, 'text', { x: (X(30) + X(d.tl)) / 2, y: Y1 + 14, 'text-anchor': 'middle', 'font-size': 11.5, fill: '#6A626B' }, 'calibrated range');
+    [0, 100, 200, 300, 400].forEach(function (v) {
+      sv(svg, 'line', { x1: X0, y1: Y(v), x2: X1, y2: Y(v), stroke: '#E4DCE0' });
+      sv(svg, 'text', { x: X0 - 6, y: Y(v) + 4, 'text-anchor': 'end', 'font-size': 11.5, fill: '#6A626B' }, String(v));
+    });
+    [0, 240, 480, 720, 960, 1200, 1440].forEach(function (t) { sv(svg, 'text', { x: X(t), y: Y0 + 16, 'text-anchor': 'middle', 'font-size': 11.5, fill: '#6A626B' }, String(t)); });
+    sv(svg, 'line', { x1: X0, y1: Y0, x2: X1, y2: Y0, stroke: '#24313D', 'stroke-width': 1.5 });
+    sv(svg, 'text', { x: (X0 + X1) / 2, y: Y0 + 34, 'text-anchor': 'middle', 'font-size': 12.5, fill: '#6A626B' }, 'oxidation time (min)');
+    sv(svg, 'text', { x: 12, y: (Y0 + Y1) / 2, 'text-anchor': 'middle', 'font-size': 12.5, fill: '#6A626B', transform: 'rotate(-90 12 ' + ((Y0 + Y1) / 2) + ')' }, 'oxide thickness (nm)');
+    // bands are drawn K times wider so that they can be seen at this scale
+    var K = 10, N = 150, up = [], lo = [], cu = [], cl = [], mid = [];
+    for (var i = 0; i <= N; i++) { var t = TMAX * i / N, q = pred(F, t, d.sig);
+      up.push(X(t).toFixed(1) + ',' + Y(q.x + K * Z * q.sp).toFixed(1)); lo.unshift(X(t).toFixed(1) + ',' + Y(q.x - K * Z * q.sp).toFixed(1));
+      cu.push(X(t).toFixed(1) + ',' + Y(q.x + K * Z * q.sm).toFixed(1)); cl.unshift(X(t).toFixed(1) + ',' + Y(q.x - K * Z * q.sm).toFixed(1));
+      mid.push(X(t).toFixed(1) + ',' + Y(q.x).toFixed(1)); }
+    sv(svg, 'polygon', { points: up.concat(lo).join(' '), fill: '#99004C', 'fill-opacity': 0.14 });
+    sv(svg, 'polygon', { points: cu.concat(cl).join(' '), fill: '#99004C', 'fill-opacity': 0.35 });
+    sv(svg, 'polyline', { points: mid.join(' '), fill: 'none', stroke: '#99004C', 'stroke-width': 2 });
+    d.t.forEach(function (t, k) { sv(svg, 'circle', { cx: X(t), cy: Y(d.x[k]), r: 3, fill: '#24313D' }); });
+    sv(svg, 'line', { x1: X(tp), y1: Y1 + 20, x2: X(tp), y2: Y0, stroke: '#24313D', 'stroke-dasharray': '4 4' });
+    sv(svg, 'text', { x: X1, y: Y0 - 8, 'text-anchor': 'end', 'font-size': 11.5, fill: '#6A626B' }, 'bands drawn 10 times wider');
+    sv(svg, 'rect', { x: X1 - 230, y: Y0 - 62, width: 22, height: 10, fill: '#99004C', 'fill-opacity': 0.35 });
+    sv(svg, 'text', { x: X1 - 202, y: Y0 - 53, 'font-size': 11.5, fill: '#24313D' }, '95% confidence band (the mean)');
+    sv(svg, 'rect', { x: X1 - 230, y: Y0 - 44, width: 22, height: 10, fill: '#99004C', 'fill-opacity': 0.14 });
+    sv(svg, 'text', { x: X1 - 202, y: Y0 - 35, 'font-size': 11.5, fill: '#24313D' }, '95% prediction band (one new wafer)');
+    var sB = Math.sqrt(F.cov[0][0]), sA = Math.sqrt(F.cov[1][1]), corr = F.cov[0][1] / (sB * sA);
+    var inside = tp >= 30 && tp <= d.tl;
+    $('statsBand').innerHTML = 'B = <b class="mono">' + f(F.B, 1) + ' ± ' + f(sB, 1) + '</b> nm²/min · B/A = <b class="mono">' + f(F.BA, 4) + ' ± ' + f(sA, 4) + '</b> nm/min · correlation <b class="mono">' + f(corr, 2) + '</b> · χ² <b class="mono">' + f(F.chi2, 1) + '</b> for ' + F.dof + '<br>' +
+      'At ' + tp + ' min: <b class="mono">' + f(P.x, 2) + ' nm</b> · confidence ± <b class="mono">' + f(Z * P.sm, 2) + '</b> · prediction ± <b class="mono">' + f(Z * P.sp, 2) + '</b> nm · ' + (inside ? 'inside' : '<b>outside</b>') + ' the calibrated range';
+    var m = $('msgBand');
+    if (!inside && tp > d.tl) {
+      m.className = 'note warn';
+      m.textContent = 'Extrapolation: ' + tp + ' min is beyond the longest run (' + d.tl + ' min). The confidence band is ' + f(Z * P.sm, 2) + ' nm here, against ' + f(Z * pred(F, (30 + d.tl) / 2, d.sig).sm, 2) + ' nm in the middle of the range, and it still assumes the model holds out here, which no run has tested.';
+    } else if (!inside) {
+      m.className = 'note warn';
+      m.textContent = 'Before the first run (30 min): the model is anchored by the known 25 nm starting oxide, so the band stays narrow, but these wafers are not thin: on bare wafers, dry oxide grows faster than the model at first.';
+    } else if (d.sig >= 1.5) {
+      m.className = 'note info';
+      m.textContent = 'With σ = ' + f(d.sig, 1) + ' nm, both bands are wide. More runs shrink the confidence band roughly as 1 / √n, but the prediction band can never be narrower than ± 1.96 σ = ' + f(Z * d.sig, 2) + ' nm: one new measurement keeps its own noise.';
+    } else {
+      m.className = 'note';
+      m.textContent = 'Inside the calibrated range the confidence band (± ' + f(Z * P.sm, 2) + ' nm) is much narrower than the prediction band (± ' + f(Z * P.sp, 2) + ' nm), which includes the measurement σ. Try 4 runs, then 24; try a longest run of 120 min and predict at 480.';
+    }
+  }
+  ['nr', 'sg', 'tl', 'tp'].forEach(function (id) { pair($(id), $(id + 'N'), draw2); });
+  $('newData').onclick = function () { seed2 += 1; draw2(); };
+  draw2();
+})();
+</script>
+</body>
+</html>
