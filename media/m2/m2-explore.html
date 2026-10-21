@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module 2 Explorer: Data Path, Clocks and Leakage</title>
+<style>
+  :root { --maroon:#99004C; --ink:#24313D; --muted:#6A626B; --line:#E4DCE0; --tint:#F8F4F6; --ok:#2E7D4F; --bad:#B3261E; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:"Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:15px; }
+  .tabs { display:flex; border-bottom:2px solid var(--line); background:var(--tint); }
+  .tabs button { flex:1; border:0; background:none; padding:10px 8px; font-size:15px; cursor:pointer; color:var(--muted); border-bottom:3px solid transparent; }
+  .tabs button.on { color:var(--maroon); border-bottom-color:var(--maroon); font-weight:600; background:#fff; }
+  .tool { display:none; padding:12px 16px; }
+  .tool.on { display:block; }
+  h2 { font-family:Georgia, serif; color:var(--maroon); font-size:19px; margin:0 0 4px; }
+  .hint { color:var(--muted); margin:0 0 10px; line-height:1.45; }
+  .grid { display:grid; grid-template-columns: 300px 1fr; gap:14px; align-items:start; }
+  @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+  .box { border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:0; }
+  .box h3 { margin:0 0 6px; font-size:14.5px; color:var(--maroon); }
+  label { display:flex; justify-content:space-between; align-items:center; margin:8px 0 2px; font-size:14px; gap:8px; }
+  label input[type=number] { width:74px; font-size:14px; padding:2px 4px; border:1px solid var(--line); border-radius:4px; text-align:right; }
+  input[type=range] { width:100%; }
+  select { font-size:14px; padding:2px 4px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  button.act { border:2px solid var(--ink); background:#fff; color:var(--ink); padding:5px 11px; border-radius:5px; font-size:14px; cursor:pointer; }
+  button.act.on, button.act.fill { background:var(--maroon); border-color:var(--maroon); color:#fff; }
+  button.act:disabled { opacity:0.5; cursor:default; }
+  .chk { display:flex; align-items:center; gap:6px; font-size:14px; margin-top:8px; justify-content:flex-start; }
+  svg.plot { width:100%; height:auto; display:block; }
+  svg .hop { cursor:pointer; }
+  .stats { font-size:14px; line-height:1.55; margin-top:6px; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .note { margin-top:8px; padding:7px 10px; border-radius:4px; font-size:13.5px; background:#EEF6F0; color:var(--ok); line-height:1.45; }
+  .note.warn { background:#FFF7E0; color:#7A5C00; }
+  .note.info { background:var(--tint); color:var(--ink); }
+  .note.bad { background:#FBEAEA; color:var(--bad); }
+  .small { font-size:12.5px; color:var(--muted); margin:6px 0 0; line-height:1.4; }
+  dl.hopinfo { margin:4px 0 0; font-size:14px; line-height:1.45; }
+  dl.hopinfo dt { font-weight:600; color:var(--maroon); margin-top:6px; }
+  dl.hopinfo dd { margin:0; }
+  .hopbtns { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+  .hopbtns button { border:2px solid var(--line); background:#fff; border-radius:50%; width:30px; height:30px; font-size:14px; cursor:pointer; color:var(--ink); }
+  .hopbtns button.on { border-color:var(--maroon); background:var(--maroon); color:#fff; }
+  .credit { color:var(--muted); font-size:12px; padding:8px 16px 12px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="tabs" role="tablist">
+  <button type="button" data-t="path" role="tab">1. One wafer's data path</button>
+  <button type="button" data-t="clock" role="tab">2. Clocks and summaries</button>
+  <button type="button" data-t="leak" role="tab">3. Leakage</button>
+</div>
+
+<!-- TOOL 1: data path -->
+<section class="tool" id="t-path" role="tabpanel">
+  <h2>Follow one wafer's data to the twin</h2>
+  <p class="hint">A monitor wafer goes through one run of the course's simulated furnace and is then measured. Six hops carry its data to the twin. Choose a hop to see what travels on it, what can go wrong, and what the twin has to do about it. Then set how late the wafer's measurement arrives.</p>
+  <div class="grid">
+    <div class="box">
+      <h3 id="hopTitle">Hop 1</h3>
+      <div class="hopbtns" id="hopBtns" aria-label="Choose a hop"></div>
+      <dl class="hopinfo" id="hopInfo"></dl>
+    </div>
+    <div class="box">
+      <h3>The data path</h3>
+      <svg class="plot" id="pathSvg" viewBox="0 0 560 250" role="img" aria-label="Data path from the furnace sensors and the ellipsometer, through the FDC system and the MES, to the data store and the twin"></svg>
+      <h3 style="margin-top:10px">When does the wafer's result arrive?</h3>
+      <label for="dl">Metrology delay after the run ends (h) <input type="number" id="dlN" min="0" max="48" step="0.5" value="3" aria-label="Metrology delay in hours"></label>
+      <input type="range" id="dl" min="0" max="48" step="0.5" value="3">
+      <label class="chk"><input type="checkbox" id="lost"> the result never reaches the database</label>
+      <svg class="plot" id="delaySvg" viewBox="0 0 560 90" role="img" aria-label="Timeline from the end of the run, with the 12-hour limit and the arrival of the result"></svg>
+      <div class="note info" id="msgDelay"></div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOL 2: clocks -->
+<section class="tool" id="t-clock" role="tabpanel">
+  <h2>Two clocks, one hold mean</h2>
+  <p class="hint">The furnace controller stamps its readings with its own clock; the MES writes the start and end of the hold with the fab's clock. The twin needs the mean zone temperature over the 60-minute hold. If the two clocks disagree and the twin picks readings by the MES times, it averages the wrong part of the run. Every value here is simulated.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Settings</h3>
+      <label for="off">Controller clock ahead of the MES (min) <input type="number" id="offN" min="-15" max="15" step="0.5" value="0" aria-label="Clock offset in minutes"></label>
+      <input type="range" id="off" min="-15" max="15" step="0.5" value="0">
+      <label for="how" style="margin-top:12px">Pick the hold readings by</label>
+      <select id="how" aria-label="How to pick the hold readings">
+        <option value="mes">the MES clock times of the hold</option>
+        <option value="step">the controller's own hold-start event</option>
+      </select>
+      <label for="noi">Thermocouple noise (°C) <input type="number" id="noiN" min="0.1" max="1.5" step="0.05" value="0.35" aria-label="Noise in degrees C"></label>
+      <input type="range" id="noi" min="0.1" max="1.5" step="0.05" value="0.35">
+      <div class="row"><button type="button" class="act" id="newRun2">New run</button></div>
+      <p class="small">Recipe: ramp up from 800 °C at about 6.7 °C per minute for 30 minutes, hold for 60 minutes, ramp down at 5 °C per minute for 40 minutes. One reading every 10 s.</p>
+    </div>
+    <div class="box">
+      <h3>The run, on the fab's clock</h3>
+      <svg class="plot" id="clockSvg" viewBox="0 0 560 336" role="img" aria-label="Zone temperature through the run, with the true hold and the readings picked for the mean"></svg>
+      <div class="stats" id="statsClock"></div>
+      <div class="note info" id="msgClock"></div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOL 3: leakage -->
+<section class="tool" id="t-leak" role="tabpanel">
+  <h2>Leakage: choosing signals with the test records</h2>
+  <p class="hint">Made-up records with random signals. The earliest 70% train, the latest 30% test. In each repetition the top signals are ranked by S2N two ways, on the training records only and on all the records, and the same simple classifier is fitted on the training records and scored on the test records. With no real signal, the right answer is an AUC of 0.5.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Settings</h3>
+      <label for="nr">Records <input type="number" id="nrN" min="100" max="1500" step="50" value="300" aria-label="Number of records"></label>
+      <input type="range" id="nr" min="100" max="1500" step="50" value="300">
+      <label for="ns">Signals <input type="number" id="nsN" min="20" max="4000" step="20" value="2000" aria-label="Number of signals"></label>
+      <input type="range" id="ns" min="20" max="4000" step="20" value="2000">
+      <label for="nk">Signals kept <input type="number" id="nkN" min="1" max="100" step="1" value="20" aria-label="Number of signals kept"></label>
+      <input type="range" id="nk" min="1" max="100" step="1" value="20">
+      <label for="fs">Share of fails <input type="number" id="fsN" min="0.05" max="0.5" step="0.01" value="0.2" aria-label="Share of fails"></label>
+      <input type="range" id="fs" min="0.05" max="0.5" step="0.01" value="0.2">
+      <label for="real" style="margin-top:12px">Real signal</label>
+      <select id="real" aria-label="Real signal">
+        <option value="0">none: labels unrelated to every signal</option>
+        <option value="0.5">weak: 10 signals shift by 0.5 SD for fails</option>
+        <option value="1">clear: 10 signals shift by 1 SD for fails</option>
+      </select>
+      <div class="row"><button type="button" class="act fill" id="runLeak">Run 20 repetitions</button></div>
+      <p class="small" id="leakSize"></p>
+    </div>
+    <div class="box">
+      <h3>Test AUC in 20 repetitions</h3>
+      <svg class="plot" id="leakSvg" viewBox="0 0 560 250" role="img" aria-label="Test AUC of each repetition, ranked on training records only and on all records"></svg>
+      <div class="stats" id="statsLeak"></div>
+      <div class="note info" id="msgLeak">Choose the settings and press Run.</div>
+    </div>
+  </div>
+</section>
+
+<div class="credit">Module 2 explorer · Digital Twins for Semiconductor Manufacturing · SemiAcademy / ISEP-CSU · CC BY 4.0. Every value is simulated or made up; nothing is read from a real tool. Risks after NIST IR 8356 (2025) and SEMI E187 (2022); interfaces after SEMI E5, E30, E37 (SECS/GEM, HSMS) and the SEMI EDA (Interface A) standards.</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  function sv(svg, tag, at, txt) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (txt !== undefined) e.textContent = txt; svg.appendChild(e); return e; }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function f(v, d) { var s = v.toFixed(d); return (s === '-' + (0).toFixed(d)) ? (0).toFixed(d) : s; }
+  function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function gauss(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function pair(range, num, cb) {
+    range.addEventListener('input', function () { num.value = range.value; cb(); });
+    num.addEventListener('change', function () {
+      var v = parseFloat(num.value), lo = parseFloat(range.min), hi = parseFloat(range.max), st = parseFloat(range.step);
+      if (isNaN(v)) v = parseFloat(range.value);
+      v = Math.min(hi, Math.max(lo, Math.round(v / st) * st)); v = Math.round(v * 100) / 100;
+      num.value = v; range.value = v; cb();
+    });
+  }
+
+  // ---------------------------------------------------------------- tabs
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs button'));
+  function openTab(t) {
+    tabs.forEach(function (b) { b.classList.toggle('on', b.dataset.t === t); });
+    document.querySelectorAll('.tool').forEach(function (s) { s.classList.toggle('on', s.id === 't-' + t); });
+  }
+  tabs.forEach(function (b) { b.onclick = function () { openTab(b.dataset.t); }; });
+  function fromHash() { var h = location.hash; openTab(h.indexOf('leak') >= 0 ? 'leak' : h.indexOf('clock') >= 0 ? 'clock' : 'path'); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // ---------------------------------------------------------------- tool 1: data path
+  var NODES = {
+    sens: { x: 10, y: 20, w: 120, h: 50, t: 'Thermocouples', s: 'in the furnace' },
+    ctrl: { x: 10, y: 110, w: 120, h: 50, t: 'Controller', s: 'furnace computer' },
+    fdc: { x: 215, y: 20, w: 120, h: 50, t: 'FDC system', s: 'traces' },
+    mes: { x: 215, y: 110, w: 120, h: 50, t: 'MES / host', s: 'runs, wafers' },
+    ell: { x: 10, y: 190, w: 120, h: 50, t: 'Ellipsometer', s: 'metrology' },
+    store: { x: 420, y: 65, w: 130, h: 50, t: 'Data store', s: 'joined records' },
+    twin: { x: 420, y: 175, w: 130, h: 50, t: 'Twin', s: 'models, decisions' }
+  };
+  var HOPS = [
+    { a: 'sens', b: 'ctrl', name: 'Thermocouples to the controller',
+      what: 'The zone temperature, measured by thermocouples and read by the furnace controller, which logs it every 10 s in this course\'s simulated furnace.',
+      wrong: 'A thermocouple drifts, fails or is wired to the wrong zone; a reading is missed. NIST IR 8356 warns that the many low-cost sensors a twin relies on may give untrustworthy data or have vulnerabilities of their own.',
+      twin: 'Check that readings are in a plausible range, mark missed readings as NaN (not 0), and compare redundant sensors where there are any.' },
+    { a: 'ctrl', b: 'fdc', name: 'Controller to the FDC system (Interface A)',
+      what: 'Detailed traces of each recipe step, with the step events, collected through SEMI\'s Equipment Data Acquisition standards (Interface A): web services that run alongside SECS/GEM and do not control the tool.',
+      wrong: 'The data collection plan asks for the wrong signals or rate; readings are dropped when the link is busy; the controller\'s clock is not synchronized with the fab\'s.',
+      twin: 'Line up readings by recipe step, not only by clock time (tab 2), and keep a summary per step, such as the hold mean.' },
+    { a: 'ctrl', b: 'mes', name: 'Controller to the MES (SECS/GEM over HSMS)',
+      what: 'Events and status: the run started, a step ended, an alarm, the recipe used, which carrier and which wafers in which slots. SECS-II (SEMI E5) defines the messages, GEM (E30) the tool\'s behavior, HSMS (E37) carries them over TCP/IP.',
+      wrong: 'A wrong slot map puts a wafer under the wrong run; events are lost while the link is down; a recipe was edited at the tool without a new name.',
+      twin: 'Use the MES run and wafer histories as the reference for joining, and flag runs whose records disagree.' },
+    { a: 'ell', b: 'mes', name: 'Ellipsometer to the MES',
+      what: 'The oxide thickness of each measured wafer, with the wafer ID and the time of the measurement. The ellipsometer knows the wafer, not the furnace run.',
+      wrong: 'The result is late (a queue, the tool is down) or never arrives; a wafer is measured twice; the result is filed under a mistyped wafer ID.',
+      twin: 'Decide which results it may use (in this course, those that arrive within 12 h) and keep runs with no result as unknown, not zero. Try the delay slider.' },
+    { a: 'fdc', b: 'store', name: 'FDC and MES to the data store',
+      what: 'The records of the three systems, joined by run ID and wafer ID: one row per run, with its hold mean, its average thickness and the delay of its result.',
+      wrong: 'An inner join silently drops a run without metrology; a join on a column that repeats (such as slot) multiplies rows; units differ between systems. NIST IR 8356 adds a security point: with every measurement in one place, a compromise exposes all of it.',
+      twin: 'Count rows before and after each join, check that each run appears once, and verify the data, for example with hashes and error-detecting codes as NIST IR 8356 suggests.' },
+    { a: 'store', b: 'twin', name: 'Data store to the twin, and back to the tool',
+      what: 'Clean, joined records go into the twin\'s models. In later modules the twin sends decisions back: an alert for an engineer, then a recipe change.',
+      wrong: 'NIST IR 8356 describes an attacker who controls the real system while the twin\'s display hides the change. A tool that is not patched or scanned can bring malware into the fab: SEMI E187 (2022) sets a minimum security baseline for fab equipment, and E188 covers malware-free integration.',
+      twin: 'Treat every connection as untrusted (a zero-trust approach), limit what the twin may change, log every change, and keep a person able to check and override it.' }
+  ];
+  var hop = 0;
+  function center(n) { return { x: n.x + n.w / 2, y: n.y + n.h / 2 }; }
+  function edgePoint(n, toward) {
+    var c = center(n), dx = toward.x - c.x, dy = toward.y - c.y;
+    var sx = dx === 0 ? Infinity : (n.w / 2) / Math.abs(dx), sy = dy === 0 ? Infinity : (n.h / 2) / Math.abs(dy), s = Math.min(sx, sy);
+    return { x: c.x + dx * s, y: c.y + dy * s };
+  }
+  function drawPath() {
+    var svg = $('pathSvg'); clear(svg);
+    var defs = sv(svg, 'defs', {});
+    [['am', '#99004C'], ['ag', '#B9B0B6']].forEach(function (m) {
+      var mk = sv(defs, 'marker', { id: m[0], viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' });
+      sv(mk, 'path', { d: 'M0 0L10 5L0 10z', fill: m[1] });
+    });
+    var links = HOPS.map(function (h) { return [h.a, h.b]; }).concat([['mes', 'store']]);
+    links.forEach(function (l, i) {
+      var on = (i === hop) || (hop === 4 && i === 6);
+      var A = NODES[l[0]], B = NODES[l[1]];
+      var p1 = edgePoint(A, center(B)), p2 = edgePoint(B, center(A));
+      var g = sv(svg, 'g', { 'class': 'hop' });
+      sv(g, 'line', { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: 'transparent', 'stroke-width': 16 });
+      sv(g, 'line', { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke: on ? '#99004C' : '#B9B0B6', 'stroke-width': on ? 4 : 2.5, 'marker-end': 'url(#' + (on ? 'am' : 'ag') + ')' });
+      if (i < HOPS.length) {
+        var mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+        sv(g, 'circle', { cx: mx, cy: my, r: 10, fill: on ? '#99004C' : '#fff', stroke: on ? '#99004C' : '#6A626B', 'stroke-width': 1.5 });
+        sv(g, 'text', { x: mx, y: my + 4.5, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: on ? '#fff' : '#24313D' }, String(i + 1));
+        g.addEventListener('click', (function (k) { return function () { hop = k; showHop(); }; })(i));
+      }
+    });
+    Object.keys(NODES).forEach(function (k) {
+      var n = NODES[k], hot = (HOPS[hop].a === k || HOPS[hop].b === k || (hop === 4 && k === 'mes'));
+      sv(svg, 'rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 7, fill: k === 'twin' ? '#FBF3F7' : '#fff', stroke: hot ? '#99004C' : '#E4DCE0', 'stroke-width': hot ? 2.5 : 2 });
+      sv(svg, 'text', { x: n.x + n.w / 2, y: n.y + 21, 'text-anchor': 'middle', 'font-size': 13.5, 'font-weight': 600, fill: '#24313D' }, n.t);
+      sv(svg, 'text', { x: n.x + n.w / 2, y: n.y + 39, 'text-anchor': 'middle', 'font-size': 11.5, fill: '#6A626B' }, n.s);
+    });
+  }
+  function showHop() {
+    var h = HOPS[hop];
+    $('hopTitle').textContent = 'Hop ' + (hop + 1) + ': ' + h.name;
+    var bt = $('hopBtns'); bt.innerHTML = '';
+    HOPS.forEach(function (_, i) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = String(i + 1);
+      b.setAttribute('aria-label', 'Hop ' + (i + 1)); if (i === hop) b.className = 'on';
+      b.onclick = function () { hop = i; showHop(); }; bt.appendChild(b);
+    });
+    var dl = $('hopInfo'); dl.innerHTML = '';
+    [['What travels', h.what], ['What can go wrong', h.wrong], ['What the twin must do', h.twin]].forEach(function (p) {
+      var dt = document.createElement('dt'); dt.textContent = p[0]; dl.appendChild(dt);
+      var dd = document.createElement('dd'); dd.textContent = p[1]; dl.appendChild(dd);
+    });
+    drawPath();
+  }
+  var LIMIT = 12;
+  function drawDelay() {
+    var d = parseFloat($('dl').value), lost = $('lost').checked;
+    var svg = $('delaySvg'); clear(svg);
+    var X0 = 20, X1 = 540, X = function (h) { return X0 + h / 48 * (X1 - X0); };
+    sv(svg, 'rect', { x: X(0), y: 22, width: X(LIMIT) - X(0), height: 26, fill: '#EEF6F0' });
+    sv(svg, 'rect', { x: X(LIMIT), y: 22, width: X(48) - X(LIMIT), height: 26, fill: '#FFF7E0' });
+    sv(svg, 'line', { x1: X0, y1: 48, x2: X1, y2: 48, stroke: '#24313D', 'stroke-width': 1.5 });
+    [0, 6, 12, 18, 24, 30, 36, 42, 48].forEach(function (h) {
+      sv(svg, 'line', { x1: X(h), y1: 48, x2: X(h), y2: 53, stroke: '#24313D' });
+      sv(svg, 'text', { x: X(h), y: 68, 'text-anchor': 'middle', 'font-size': 11.5, fill: '#6A626B' }, h + ' h');
+    });
+    sv(svg, 'line', { x1: X(LIMIT), y1: 14, x2: X(LIMIT), y2: 52, stroke: '#99004C', 'stroke-width': 2, 'stroke-dasharray': '5 4' });
+    sv(svg, 'text', { x: X(LIMIT) + 4, y: 14, 'font-size': 11.5, fill: '#99004C' }, 'twin\'s limit, 12 h');
+    sv(svg, 'text', { x: X(0) + 2, y: 85, 'font-size': 11.5, fill: '#6A626B' }, 'run ends');
+    if (!lost) {
+      sv(svg, 'circle', { cx: X(d), cy: 35, r: 7, fill: d <= LIMIT ? '#2E7D4F' : '#B3261E' });
+      sv(svg, 'text', { x: Math.min(X(d), 470), y: 85, 'font-size': 11.5, fill: '#24313D', 'text-anchor': X(d) > 470 ? 'end' : 'middle' }, 'result arrives');
+    } else {
+      sv(svg, 'text', { x: X(30), y: 40, 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 600, fill: '#B3261E' }, 'no result');
+    }
+    var m = $('msgDelay');
+    if (lost) { m.className = 'note bad'; m.textContent = 'Missing: the run stays in the twin\'s table with thickness NaN (unknown). The twin keeps its last estimate for this run, and the missing result should be reported so that someone follows it up. Counting it as 0 nm would wreck any average.'; }
+    else if (d <= LIMIT) { m.className = 'note'; m.textContent = 'On time: the result arrives ' + f(d, 1) + ' h after the run, within the 12-hour limit, so the twin can use it before the next lots are dispatched.'; }
+    else { m.className = 'note warn'; m.textContent = 'Late: the result arrives ' + f(d, 1) + ' h after the run. The decision it was meant for has already been made without it. The twin should not use it as if it were fresh, but it is still a valid measurement for refitting the model later.'; }
+  }
+  pair($('dl'), $('dlN'), drawDelay);
+  $('lost').onchange = drawDelay;
+  showHop(); drawDelay();
+
+  // ---------------------------------------------------------------- tool 2: clocks
+  var UP = 1800, HOLD = 3600, DOWN = 2400, STEP = 10, seed2 = 11;
+  var run2 = null;
+  function makeRun2() {
+    var r = rng(seed2), n = (UP + HOLD + DOWN) / STEP + 1, t = [], base = [], e = [];
+    var off = 0.8 * gauss(r);
+    for (var i = 0; i < n; i++) {
+      var s = i * STEP, v;
+      if (s <= UP) { var x = s / UP; v = 800 + (200 + off) * x; }
+      else if (s <= UP + HOLD) { v = 1000 + off; }
+      else { v = 1000 + off - 200 * (s - UP - HOLD) / DOWN; }
+      t.push(s); base.push(v); e.push(gauss(r));
+    }
+    run2 = { t: t, base: base, e: e, off: off };
+  }
+  function drawClock() {
+    var offMin = parseFloat($('off').value), how = $('how').value, sig = parseFloat($('noi').value);
+    var y = run2.base.map(function (v, i) { return v + sig * run2.e[i]; });
+    // the controller stamps reading i with (true time + offset); the MES hold is [UP, UP + HOLD] on the true clock
+    var offS = offMin * 60, picked = [], trueHold = [];
+    for (var i = 0; i < y.length; i++) {
+      var stamp = run2.t[i] + offS, inTrue = run2.t[i] >= UP && run2.t[i] < UP + HOLD;
+      var inPick = how === 'mes' ? (stamp >= UP && stamp < UP + HOLD) : inTrue;
+      if (inPick) picked.push(i);
+      if (inTrue) trueHold.push(i);
+    }
+    var mean = function (idx) { var s = 0; idx.forEach(function (i) { s += y[i]; }); return s / idx.length; };
+    var mP = mean(picked), mT = mean(trueHold);
+    var outside = picked.filter(function (i) { return run2.t[i] < UP || run2.t[i] >= UP + HOLD; }).length;
+    var svg = $('clockSvg'); clear(svg);
+    var X0 = 52, X1 = 548, T_END = UP + HOLD + DOWN;
+    // top: the whole run
+    var A0 = 104, A1 = 12, alo = 780, ahi = 1015;
+    var XA = function (s) { return X0 + s / T_END * (X1 - X0); }, YA = function (v) { return A0 - (v - alo) / (ahi - alo) * (A0 - A1); };
+    sv(svg, 'rect', { x: XA(UP), y: A1, width: XA(UP + HOLD) - XA(UP), height: A0 - A1, fill: '#F8F4F6' });
+    [800, 900, 1000].forEach(function (v) {
+      sv(svg, 'line', { x1: X0, y1: YA(v), x2: X1, y2: YA(v), stroke: '#E4DCE0' });
+      sv(svg, 'text', { x: X0 - 6, y: YA(v) + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#6A626B' }, String(v));
+    });
+    sv(svg, 'polyline', { points: y.map(function (v, i) { return XA(run2.t[i]).toFixed(1) + ',' + YA(v).toFixed(1); }).join(' '), fill: 'none', stroke: '#24313D', 'stroke-width': 1.1, 'stroke-opacity': 0.8 });
+    [0, 30, 60, 90, 120].forEach(function (mn) { sv(svg, 'text', { x: XA(mn * 60), y: A0 + 14, 'text-anchor': 'middle', 'font-size': 11, fill: '#6A626B' }, mn + ' min'); });
+    sv(svg, 'line', { x1: X0, y1: A0, x2: X1, y2: A0, stroke: '#24313D' });
+    sv(svg, 'text', { x: (XA(UP) + XA(UP + HOLD)) / 2, y: A1 + 12, 'text-anchor': 'middle', 'font-size': 11, fill: '#6A626B' }, 'the real hold');
+    var z0 = UP - 15 * 60, z1 = UP + HOLD + 15 * 60;
+    sv(svg, 'rect', { x: XA(z0), y: A1, width: XA(z1) - XA(z0), height: A0 - A1, fill: 'none', stroke: '#99004C', 'stroke-dasharray': '4 3' });
+    // bottom: zoom on the hold
+    var B0 = 300, B1 = 150, blo = 993, bhi = 1004;
+    var XB = function (s) { return X0 + (s - z0) / (z1 - z0) * (X1 - X0); }, YB = function (v) { return B0 - (Math.max(blo, Math.min(bhi, v)) - blo) / (bhi - blo) * (B0 - B1); };
+    sv(svg, 'text', { x: X0, y: B1 - 10, 'font-size': 12, fill: '#99004C', 'font-weight': 600 }, 'Zoom on the hold, 15 minutes either side');
+    sv(svg, 'rect', { x: XB(UP), y: B1, width: XB(UP + HOLD) - XB(UP), height: B0 - B1, fill: '#F8F4F6' });
+    [994, 996, 998, 1000, 1002, 1004].forEach(function (v) {
+      sv(svg, 'line', { x1: X0, y1: YB(v), x2: X1, y2: YB(v), stroke: '#E4DCE0' });
+      sv(svg, 'text', { x: X0 - 6, y: YB(v) + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#6A626B' }, String(v));
+    });
+    for (var i2 = 0; i2 < y.length; i2++) {
+      if (run2.t[i2] < z0 || run2.t[i2] > z1) continue;
+      var pk = picked.indexOf(i2) >= 0, out = run2.t[i2] < UP || run2.t[i2] >= UP + HOLD;
+      sv(svg, 'circle', { cx: XB(run2.t[i2]), cy: YB(y[i2]), r: pk ? 2.4 : 1.6, fill: pk ? (out ? '#B3261E' : '#99004C') : '#B9B0B6' });
+    }
+    sv(svg, 'line', { x1: XB(UP), y1: YB(mT), x2: XB(UP + HOLD), y2: YB(mT), stroke: '#2E7D4F', 'stroke-width': 2.5 });
+    sv(svg, 'line', { x1: X0, y1: YB(mP), x2: X1, y2: YB(mP), stroke: '#99004C', 'stroke-width': 2, 'stroke-dasharray': '6 4' });
+    sv(svg, 'line', { x1: X0, y1: B0, x2: X1, y2: B0, stroke: '#24313D' });
+    [30, 45, 60, 75, 90].forEach(function (mn) { sv(svg, 'text', { x: XB(mn * 60), y: B0 + 14, 'text-anchor': 'middle', 'font-size': 11, fill: '#6A626B' }, mn + ' min'); });
+    sv(svg, 'text', { x: (X0 + X1) / 2, y: B0 + 30, 'text-anchor': 'middle', 'font-size': 12, fill: '#6A626B' }, 'time from the push, on the fab\'s clock (°C on the left)');
+    sv(svg, 'text', { x: X1, y: B1 + 14, 'text-anchor': 'end', 'font-size': 11.5, fill: '#2E7D4F', 'font-weight': 600 }, 'solid green: mean over the real hold');
+    sv(svg, 'text', { x: X1, y: B1 + 28, 'text-anchor': 'end', 'font-size': 11.5, fill: '#99004C', 'font-weight': 600 }, 'dashed: mean of the picked readings; red dots: picked from a ramp');
+    $('statsClock').innerHTML = 'Mean of the picked readings: <b class="mono">' + f(mP, 2) + ' °C</b> · mean over the real hold: <b class="mono">' + f(mT, 2) + ' °C</b><br>' +
+      'Error: <b class="mono">' + f(mP - mT, 2) + ' °C</b> · picked readings outside the real hold: <b class="mono">' + outside + '</b> of ' + picked.length;
+    var m = $('msgClock');
+    if (how === 'step') { m.className = 'note'; m.textContent = 'Picking the readings by the controller\'s own hold-start event, and counting time_s from it, does not depend on any clock: the mean is right whatever the offset. This is why traces are usually aligned by recipe step.'; }
+    else if (Math.abs(offMin) < 0.25) { m.className = 'note info'; m.textContent = 'With the two clocks in step, the MES times pick exactly the hold. Now move the controller\'s clock a few minutes ahead or behind.'; }
+    else {
+      m.className = Math.abs(mP - mT) > 1 ? 'note bad' : 'note warn';
+      m.textContent = 'The controller\'s clock is ' + f(Math.abs(offMin), 1) + ' min ' + (offMin > 0 ? 'ahead' : 'behind') + ', so the MES times pick ' + outside + ' readings from the ' + (offMin > 0 ? 'end of the ramp up' : 'start of the ramp down') +
+        ' and miss as many from the hold. The hold mean is off by ' + f(mP - mT, 2) + ' °C, while the run-to-run differences the twin is looking for are less than a degree. Switch to the hold-start event to fix it.';
+    }
+  }
+  pair($('off'), $('offN'), drawClock); pair($('noi'), $('noiN'), drawClock);
+  $('how').onchange = drawClock;
+  $('newRun2').onclick = function () { seed2 += 1; makeRun2(); drawClock(); };
+  makeRun2(); drawClock();
+
+  // ---------------------------------------------------------------- tool 3: leakage
+  var running = false, last = null;
+  function auc(score, lab) {
+    var idx = score.map(function (_, i) { return i; }).sort(function (a, b) { return score[a] - score[b]; });
+    var rsum = 0, n1 = 0, n0 = 0;
+    idx.forEach(function (i, r) { if (lab[i]) { rsum += r + 1; n1++; } else n0++; });
+    if (!n1 || !n0) return NaN;
+    return (rsum - n1 * (n1 + 1) / 2) / (n1 * n0);
+  }
+  function oneRep(n, p, k, share, shift, seed) {
+    var r = rng(seed), ntr = Math.round(0.7 * n), X = new Float32Array(n * p), y = new Uint8Array(n);
+    for (var i = 0; i < n; i++) y[i] = r() < share ? 1 : 0;
+    for (i = 0; i < n; i++) for (var j = 0; j < p; j++) X[i * p + j] = gauss(r) + (j < 10 && y[i] ? shift : 0);
+    function s2n(rows) {
+      var out = new Float64Array(p);
+      for (var j = 0; j < p; j++) {
+        var s1 = 0, q1 = 0, c1 = 0, s0 = 0, q0 = 0, c0 = 0;
+        for (var ii = 0; ii < rows; ii++) { var v = X[ii * p + j]; if (y[ii]) { s1 += v; q1 += v * v; c1++; } else { s0 += v; q0 += v * v; c0++; } }
+        var m1 = s1 / c1, m0 = s0 / c0, sd1 = Math.sqrt(Math.max(0, (q1 - c1 * m1 * m1) / (c1 - 1))), sd0 = Math.sqrt(Math.max(0, (q0 - c0 * m0 * m0) / (c0 - 1)));
+        out[j] = Math.abs(m1 - m0) / (sd1 + sd0);
+      }
+      return out;
+    }
+    function top(sc) { return Array.prototype.slice.call(sc).map(function (v, j) { return [v, j]; }).sort(function (a, b) { return b[0] - a[0]; }).slice(0, k).map(function (a) { return a[1]; }); }
+    function score(cols) {
+      // the classifier learns only from the training records: means, SDs and the direction of each chosen signal
+      var w = cols.map(function (j) {
+        var s1 = 0, c1 = 0, s0 = 0, c0 = 0, s = 0, q = 0;
+        for (var ii = 0; ii < ntr; ii++) { var v = X[ii * p + j]; s += v; q += v * v; if (y[ii]) { s1 += v; c1++; } else { s0 += v; c0++; } }
+        var m = s / ntr, sd = Math.sqrt((q - ntr * m * m) / (ntr - 1));
+        return { j: j, m: m, sd: sd, sign: (s1 / c1 - s0 / c0) >= 0 ? 1 : -1 };
+      });
+      var sc = [], lab = [];
+      for (var ii = ntr; ii < n; ii++) { var z = 0; w.forEach(function (c) { z += c.sign * (X[ii * p + c.j] - c.m) / c.sd; }); sc.push(z); lab.push(y[ii]); }
+      return auc(sc, lab);
+    }
+    var nf = 0, nft = 0; for (i = 0; i < n; i++) { nf += y[i]; if (i < ntr) nft += y[i]; }
+    if (nft < 2 || nf - nft < 1 || ntr - nft < 2) return null;
+    return { honest: score(top(s2n(ntr))), leaky: score(top(s2n(n))) };
+  }
+  function readLeak() {
+    return { n: parseInt($('nr').value, 10), p: parseInt($('ns').value, 10), k: Math.min(parseInt($('nk').value, 10), parseInt($('ns').value, 10)),
+      share: parseFloat($('fs').value), shift: parseFloat($('real').value) };
+  }
+  function sizeNote() {
+    var s = readLeak();
+    $('leakSize').textContent = s.n + ' records × ' + s.p + ' signals: ' + Math.round(0.7 * s.n) + ' train, ' + (s.n - Math.round(0.7 * s.n)) + ' test, about ' + Math.round(s.share * (s.n - Math.round(0.7 * s.n))) + ' test fails. Signals per record: ' + (s.p / s.n).toFixed(1) + '.';
+  }
+  function drawLeak(res, s) {
+    var svg = $('leakSvg'); clear(svg);
+    var X0 = 58, X1 = 548, Y0 = 210, Y1 = 14, lo = 0.2, hi = 1.0;
+    var Y = function (v) { return Y0 - (v - lo) / (hi - lo) * (Y0 - Y1); };
+    [0.2, 0.4, 0.6, 0.8, 1.0].forEach(function (v) {
+      sv(svg, 'line', { x1: X0, y1: Y(v), x2: X1, y2: Y(v), stroke: '#E4DCE0' });
+      sv(svg, 'text', { x: X0 - 6, y: Y(v) + 4, 'text-anchor': 'end', 'font-size': 11.5, fill: '#6A626B' }, v.toFixed(1));
+    });
+    sv(svg, 'line', { x1: X0, y1: Y(0.5), x2: X1, y2: Y(0.5), stroke: '#24313D', 'stroke-dasharray': '5 4' });
+    sv(svg, 'text', { x: X1, y: Y(0.5) - 5, 'text-anchor': 'end', 'font-size': 11.5, fill: '#24313D' }, 'chance');
+    sv(svg, 'text', { x: 14, y: (Y0 + Y1) / 2, 'text-anchor': 'middle', 'font-size': 12.5, fill: '#6A626B', transform: 'rotate(-90 14 ' + ((Y0 + Y1) / 2) + ')' }, 'test AUC');
+    var cols = [['honest', 'ranked on training records', '#99004C', X0 + (X1 - X0) * 0.27], ['leaky', 'ranked on all records', '#B3261E', X0 + (X1 - X0) * 0.73]];
+    if (!res.length) {
+      cols.forEach(function (c) { sv(svg, 'text', { x: c[3], y: Y0 + 20, 'text-anchor': 'middle', 'font-size': 12.5, fill: '#24313D', 'font-weight': 600 }, c[1]); });
+      return;
+    }
+    cols.forEach(function (c) {
+      var vals = res.map(function (r) { return r[c[0]]; });
+      vals.forEach(function (v, i) { sv(svg, 'circle', { cx: c[3] + ((i % 10) - 4.5) * 9, cy: Y(Math.max(lo, Math.min(hi, v))), r: 4, fill: c[2], 'fill-opacity': 0.7 }); });
+      var m = vals.reduce(function (a, b) { return a + b; }, 0) / vals.length;
+      sv(svg, 'line', { x1: c[3] - 60, y1: Y(m), x2: c[3] + 60, y2: Y(m), stroke: c[2], 'stroke-width': 3 });
+      sv(svg, 'text', { x: c[3], y: Y0 + 20, 'text-anchor': 'middle', 'font-size': 12.5, fill: '#24313D', 'font-weight': 600 }, c[1]);
+      sv(svg, 'text', { x: c[3], y: Y0 + 36, 'text-anchor': 'middle', 'font-size': 12, fill: c[2] }, 'mean ' + f(m, 3));
+    });
+    var mh = res.reduce(function (a, r) { return a + r.honest; }, 0) / res.length, ml = res.reduce(function (a, r) { return a + r.leaky; }, 0) / res.length;
+    var above = res.filter(function (r) { return r.leaky > r.honest; }).length;
+    $('statsLeak').innerHTML = 'Mean test AUC: ranked on training records <b class="mono">' + f(mh, 3) + '</b>, ranked on all records <b class="mono">' + f(ml, 3) + '</b> · the leaky version scored higher in <b class="mono">' + above + '</b> of ' + res.length + ' repetitions';
+    var m = $('msgLeak');
+    if (s.shift === 0) {
+      m.className = ml - mh > 0.05 ? 'note bad' : 'note warn';
+      m.textContent = 'No signal is related to the labels, so any AUC above 0.5 is an illusion. Ranked on the training records, the mean is ' + f(mh, 2) + ', close to chance as it should be. Ranked on all records it is ' + f(ml, 2) + ': with ' + s.p + ' signals to choose from, some separate the test fails by luck, and the leaky ranking finds exactly those. Try more signals, or fewer records.';
+    } else {
+      m.className = 'note warn';
+      m.textContent = 'Ten signals really differ for fails. The honest ranking finds some of them, and its mean AUC, ' + f(mh, 2) + ', is what new records would give. The leaky ranking adds signals that only look good on these test records, so its mean, ' + f(ml, 2) + ', overstates what the model can do.';
+    }
+  }
+  function runLeak() {
+    if (running) return;
+    var s = readLeak(); running = true; $('runLeak').disabled = true;
+    var res = [], rep = 0, base = Math.floor(Math.random() * 1e9);
+    $('msgLeak').className = 'note info';
+    function step() {
+      var r = oneRep(s.n, s.p, s.k, s.share, s.shift, base + rep * 7919);
+      if (r) res.push(r);
+      rep++;
+      $('msgLeak').textContent = 'Running repetition ' + rep + ' of 20...';
+      if (rep < 20) { setTimeout(step, 0); return; }
+      running = false; $('runLeak').disabled = false;
+      if (res.length < 10) { $('msgLeak').className = 'note bad'; $('msgLeak').textContent = 'Too few fails to compute an AUC: raise the share of fails or the number of records.'; return; }
+      last = { res: res, s: s }; drawLeak(res, s);
+    }
+    setTimeout(step, 0);
+  }
+  ['nr', 'ns', 'nk', 'fs'].forEach(function (id) { pair($(id), $(id + 'N'), sizeNote); });
+  $('runLeak').onclick = runLeak;
+  sizeNote();
+  drawLeak([], readLeak());
+  $('msgLeak').textContent = 'Choose the settings and press Run 20 repetitions.';
+})();
+</script>
+</body>
+</html>
