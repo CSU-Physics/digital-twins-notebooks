@@ -1,0 +1,350 @@
+"""Build the Module 5 browser notebook (Digital Twins for Semiconductor Manufacturing), its Colab copy, and copy its files.
+
+content/m5 holds furnace.py (1.5.0), r2r_tools.py (supplied helpers) and dt_m5_check.py (copied from checks/).
+The check cell only imports the check file, so the course's reference solutions are not on screen."""
+import shutil
+from pathlib import Path
+
+import nbformat as nbf
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "content" / "m5"
+NAME = "DT-M5-lab-run-to-run.ipynb"
+VERSION = "2026-10-23"
+META = {"kernelspec": {"name": "python", "display_name": "Python (Pyodide)", "language": "python"},
+        "language_info": {"name": "python"}}
+
+shutil.copyfile(ROOT / "checks" / "dt_m5_check.py", OUT / "dt_m5_check.py")
+
+
+def md(s): return nbf.v4.new_markdown_cell(s)
+def code(s): return nbf.v4.new_code_cell(s)
+
+
+cells = [
+md(f"""# Module 5 lab: keeping the twin in sync
+
+**Digital Twins for Semiconductor Manufacturing · Module 5 · about 90 minutes** · notebook version {VERSION}
+
+The furnace twin predicts oxide thickness from the recipe with the Deal-Grove model of Module 3. The real furnace does not stay the same: its thermocouple slowly starts to read high, the controller keeps the reading at 1000 °C, and the wafers are oxidized a little cooler every run. In this lab the twin keeps up through **run-to-run control**. After every run it compares the monitor wafer's measured thickness with its own prediction, updates its estimate of the difference, and sets the next run's oxidation time.
+
+You write four functions:
+
+1. `ewma_update()`, an **EWMA** estimate of the offset between the furnace and the twin;
+2. `next_time()`, the **recipe rule**: the oxidation time that brings the next run to target, within the recipe's time limits;
+3. `kalman_update()`, a **one-variable Kalman filter**, the second estimator;
+4. `alarm_run()`, the rule that says when the drift has grown too large and the furnace needs a temperature calibration.
+
+Then you run each controller for 60 production runs on **the same disturbance sequence**: the same thermocouple drift, the same noise and one missing measurement. For each controller you report the **mean absolute error**, the **largest deviation** and the number of **runs held at a recipe limit**. At the end, the thermocouple starts to fail, and you see what control can and cannot do about it.
+
+All the data are **simulated**. The **Module 5 Lab Check** in Canvas asks about your results, so keep this lab open in a second tab. Run each code cell with **Shift + Enter**, in order."""),
+md("""## Step 0: start Python
+
+The first time, Python can take up to a minute to start. The cell prints the versions of the libraries and of the two course files next to this notebook: `furnace.py`, the furnace simulator, and `r2r_tools.py`, the helpers for this lab."""),
+code(f"""import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import furnace, r2r_tools
+from furnace import r2r_setup, r2r_furnace
+from r2r_tools import (dg_thickness, qualification_offset, closed_loop, summary, compare, plot_runs,
+                       Q_NM2, R_NM2, LAMBDA, ALARM_LIMIT_NM, ALARM_RUNS)
+
+print("Notebook version {VERSION}")
+print("NumPy", np.__version__, "| pandas", pd.__version__, "| furnace.py", furnace.__version__,
+      "| r2r_tools.py", r2r_tools.__version__)"""),
+md("""## Step 1: the furnace, the twin and the offset d
+
+`r2r_setup(key)` returns what the process engineer knows about one simulated furnace before production starts. The recipe is **DRYOX-90**: dry oxidation at 1000 °C of wafers that carry only their native oxide, 1.5 nm.
+
+| item | meaning |
+|---|---|
+| `target_nm` | the thickness every run must reach (nm) |
+| `B`, `BA` | the twin's Deal-Grove constants for this furnace: B in nm²/min and B/A in nm/min, calibrated as in Module 3 |
+| `xi_nm` | the oxide on the wafers before the run, 1.5 nm |
+| `t_limits` | the oxidation times the recipe allows: 80 to 100 minutes |
+| `qual_time_min`, `qual_thickness_nm` | the **qualification run** (run 0): 90 minutes, and its monitor wafer's measured thickness |
+
+The twin predicts the thickness with `dg_thickness(t, B, BA, xi)`, the Deal-Grove solution you wrote in Module 3. The state this lab estimates is the **offset d**:
+
+**d = measured monitor-wafer thickness − the twin's prediction for that run's oxidation time**
+
+The cell computes d for the qualification run, on the example furnace (key 2026). That value, **d_ref**, is the offset when the furnace was known to be correct."""),
+code("""setup = r2r_setup(2026)
+for name, value in setup.items():
+    print(f"{name:18s} {value}")
+
+twin_90 = dg_thickness(setup["qual_time_min"], setup["B"], setup["BA"], setup["xi_nm"])
+d_ref = qualification_offset(setup)
+print()
+print(f"twin's prediction for 90 min: {twin_90:.2f} nm; measured: {setup['qual_thickness_nm']:.2f} nm")
+print(f"offset at qualification, d_ref = {d_ref:.3f} nm")"""),
+md("""**What to notice.** The twin predicts about 6 nm less than the furnace grows. You met the reason in Module 3: on bare wafers, dry oxidation runs faster at first than the Deal-Grove model allows (the thin-oxide regime), and the twin's model leaves that out. This part of d is a **steady model error**, and it is not a problem: a run-to-run controller aims the twin's prediction at the target minus d, so a known, steady d is simply subtracted. What matters is how d **changes** from run to run."""),
+md("""## Step 2: a fixed recipe on a drifting furnace
+
+Now production starts. `closed_loop(key, "fixed")` runs the 60 production runs, each at the qualification time of 90 minutes, and returns a log with one row per run:
+
+| column | meaning |
+|---|---|
+| `ox_time_min` | the oxidation time that ran (min); `recommended_min` is what the controller recommended |
+| `held` | True when the time sat at a recipe limit, 80 or 100 min |
+| `measured_nm` | the monitor wafer's measured thickness (nm); NaN for a run that was not measured |
+| `offset_nm` | the offset observed in that run: measured minus the twin's prediction (nm) |
+| `d_hat_nm`, `P_nm2` | the controller's estimate of d after the run, and the Kalman filter's variance (NaN for the fixed recipe) |
+| `achieved_nm`, `error_nm` | the run's true mean thickness, and its difference from the target (nm) |
+
+Only a simulation knows `achieved_nm`: a real fab sees the monitor wafer, which adds a measurement error of about 0.3 nm. The lab scores the controllers on the achieved thickness, which is what the product wafers get."""),
+code("""log_fixed = closed_loop(2026, "fixed")
+print(log_fixed.head(6).round(3).to_string(index=False))
+print("...")
+print("runs with no measurement:", log_fixed.loc[log_fixed["measured_nm"].isna(), "run"].tolist())
+print("fixed recipe:", {k: round(v, 3) for k, v in summary(log_fixed).items()})
+plot_runs({"fixed 90 min": log_fixed}, setup, title="Fixed recipe, example furnace")"""),
+md("""**What to notice.** The achieved thickness falls by about 3 nm over the 60 runs, and the observed offset falls with it. The twin's prediction does not change, because the twin uses the recipe and the setpoint, and the thermocouple still reports 1000 °C.
+
+This is the **thermocouple drift** of the reading. The thermocouple reads high by a bias b (°C) that grows slowly, as thermocouples at high temperature do when their wires change with use. The temperature controller holds the **reading** at the setpoint, so the **true** temperature is 1000 °C − b. At 90 minutes and 1000 °C, one degree less grows about 0.5 nm less oxide. Nothing in the furnace's own data shows the drift; only the measured thickness does."""),
+md("""## Step 3: your task, the EWMA estimate `ewma_update()`
+
+Each run gives one noisy observation of the offset, y = measured − predicted. One observation is not a good estimate: it carries the run's temperature noise and the monitor wafer's measurement error, together about 0.4 nm. The **exponentially weighted moving average** (EWMA) blends each new observation into the old estimate:
+
+**d̂_new = λ · y + (1 − λ) · d̂_old**
+
+with a weight λ between 0 and 1. A large λ follows new observations quickly and passes on much of their noise; a small λ averages over many runs and follows a change slowly. Unrolled, the estimate is a weighted average of all past observations, with weights λ, λ(1 − λ), λ(1 − λ)², ... that shrink by the factor (1 − λ) for each run back.
+
+When a run has **no measurement**, y is NaN, and there is nothing new to blend in: the estimate stays as it was.
+
+**Your task:** write `ewma_update(d_prev, y, lam)`. Return λ · y + (1 − λ) · d_prev, or d_prev when y is NaN. Test for NaN with `np.isnan(y)`; `y == np.nan` is always False."""),
+code("""def ewma_update(d_prev, y, lam):
+    \"\"\"EWMA estimate of the offset after the observation y (nm): lam * y + (1 - lam) * d_prev, or d_prev when y is NaN.\"\"\"
+    # YOUR CODE HERE
+    raise NotImplementedError("Complete ewma_update() first.")"""),
+code("""print(ewma_update(-0.8, -1.4, 0.3), "  (should be -0.98)")
+print(ewma_update(2.0, np.nan, 0.3), "  (should be 2.0: no measurement, no change)")"""),
+md("""## Step 4: your task, the recipe rule `next_time()`
+
+Before each run, the controller chooses the oxidation time. The twin predicts dg_thickness(t), and the furnace grows that **plus d**. So the controller aims the twin at **x = target − d̂** and finds the time t at which the Deal-Grove thickness equals x.
+
+From Module 3, Deal-Grove growth from an initial oxide xᵢ follows x² + A·x = B·(t + τ), with A = B / (B/A) and τ = (xᵢ² + A·xᵢ)/B. Solved for the time:
+
+**t = (x² − xᵢ² + A·(x − xᵢ)) / B**
+
+The recipe allows only times from 80 to 100 minutes, so the rule **clips** t to `t_limits`: a time below the lower limit becomes the lower limit, a time above the upper limit becomes the upper limit. A run whose time was clipped is **held at a limit**: the controller could not reach the target, and the run will be off target.
+
+**Your task:** write `next_time(d_hat, target_nm, B, BA, xi_nm, t_limits)`. Compute x, then A = B / BA, then t, then clip t to `(t_limits[0], t_limits[1])`, and return it in minutes, without rounding."""),
+code("""def next_time(d_hat, target_nm, B, BA, xi_nm, t_limits):
+    \"\"\"Oxidation time (min) at which the twin's Deal-Grove thickness plus d_hat equals target_nm, clipped to t_limits.\"\"\"
+    # YOUR CODE HERE
+    raise NotImplementedError("Complete next_time() first.")"""),
+code("""args = (setup["target_nm"], setup["B"], setup["BA"], setup["xi_nm"], setup["t_limits"])
+t0 = next_time(d_ref, *args)
+print(f"time for d_hat = d_ref: {t0:.3f} min")
+print(f"round trip: twin prediction {dg_thickness(t0, setup['B'], setup['BA'], setup['xi_nm']):.3f} nm "
+      f"+ d_ref {d_ref:.3f} nm = {dg_thickness(t0, setup['B'], setup['BA'], setup['xi_nm']) + d_ref:.3f} nm; target {setup['target_nm']} nm")
+print(f"d_hat = d_ref - 3 nm: {next_time(d_ref - 3, *args):.3f} min (a thinner furnace needs a longer run)")
+print(f"d_hat = d_ref - 12 nm: {next_time(d_ref - 12, *args):.3f} min (held at the upper limit)")"""),
+md("""## Step 5: one closed loop, written out
+
+With an estimator and a recipe rule, the loop is short. Before each run, the controller recommends a time from the current estimate; the furnace runs; the estimate is updated from the new observation. The cell writes the loop out for the EWMA with λ = 0.2, starting from the qualification offset, and then checks that `closed_loop()` from `r2r_tools`, which the rest of the lab uses, gives the same times.
+
+`r2r_furnace(2026, "drift")` is the furnace in production, one run at a time: `run(t)` processes the next run with oxidation time t and returns the monitor wafer's measured thickness, or NaN. Every `r2r_furnace` with the same key and scenario has **the same disturbances**: the same bias trajectory, the same temperature noise and the same measurement noise in each run. Only the controller's decisions differ, so the comparison between controllers is fair."""),
+code("""furn = r2r_furnace(2026, "drift")
+d_hat = d_ref
+times = []
+for run in range(1, 61):
+    t = next_time(d_hat, *args)                                       # 1. recommend the time
+    y_nm = furn.run(t)                                                # 2. run the furnace, measure the monitor wafer
+    offset = y_nm - dg_thickness(t, setup["B"], setup["BA"], setup["xi_nm"])   # 3. observe the offset (NaN if not measured)
+    d_hat = ewma_update(d_hat, offset, 0.2)                           # 4. update the estimate
+    times.append(t)
+
+log_ewma = closed_loop(2026, "ewma", next_time=next_time, ewma_update=ewma_update, lam=0.2)
+print("same times as closed_loop():", np.allclose(times, log_ewma["ox_time_min"]))
+print(f"oxidation time: run 1 {times[0]:.2f} min, run 60 {times[-1]:.2f} min")
+print("EWMA, lambda 0.2:", {k: round(v, 3) for k, v in summary(log_ewma).items()})"""),
+md("""**What to notice.** The controller lengthens the oxidation time by several minutes over the 60 runs, as the furnace runs cooler, and the mean absolute error falls from about 1.5 nm with the fixed recipe to about a quarter of a nanometre. The thickness chart now looks healthy, although the thermocouple still drifts. Keep that in mind for Step 11."""),
+md("""## Step 6: your task, the Kalman filter `kalman_update()`
+
+The EWMA has one weight, λ, chosen by hand. A **Kalman filter** (Kalman, 1960) computes the weight from two stated variances and from how uncertain the estimate is at the moment. For one variable it rests on a simple model of the offset:
+
+- **the offset moves a little from run to run**, d_k = d_(k−1) + w_k, a random walk with steps of variance **Q**;
+- **each observation is the offset plus noise**, y_k = d_k + v_k, with noise of variance **R**.
+
+The filter keeps an estimate d̂ and its variance P. For each run:
+
+1. **predict:** P⁻ = P + Q (the offset may have moved since the last run, so the estimate is less certain);
+2. **gain:** K = P⁻ / (P⁻ + R);
+3. **update:** d̂ = d̂ + K · (y − d̂) and P = (1 − K) · P⁻.
+
+When the run has **no measurement**, only step 1 happens: d̂ stays, and P grows to P⁻.
+
+The update in step 3 is an EWMA with λ = K. The difference is that K changes: when P is large (just after qualification, or after a missing measurement), K is large and the filter learns quickly; as P shrinks, K settles to a steady value. The lab uses **R = 0.16 nm²**, from the qualification study (run-to-run temperature noise plus the monitor wafer's measurement error), and **Q = 0.01 nm²**, chosen a little larger than the random part of the drift so that the filter also follows its steady trend. The filter starts from d̂ = d_ref and P = R: one qualification run.
+
+**Your task:** write `kalman_update(d_prev, P_prev, y, Q, R)` and return the new estimate and its variance as `d, P`."""),
+code("""def kalman_update(d_prev, P_prev, y, Q, R):
+    \"\"\"One Kalman step for a random-walk offset: returns (d, P). When y is NaN: (d_prev, P_prev + Q).\"\"\"
+    # YOUR CODE HERE
+    raise NotImplementedError("Complete kalman_update() first.")"""),
+code("""print(kalman_update(0.5, 0.16, 1.3, 0.01, 0.16), "  (should be about (0.912, 0.0824))")
+print(kalman_update(0.5, 0.05, np.nan, 0.01, 0.16), "  (should be (0.5, 0.06): no measurement)")
+
+# the gain run by run, from P = R, with a measurement in every run
+P, gains = R_NM2, []
+for run in range(30):
+    P_minus = P + Q_NM2
+    gains.append(P_minus / (P_minus + R_NM2))
+    _, P = kalman_update(0.0, P, 0.0, Q_NM2, R_NM2)
+P_steady = (Q_NM2 + np.sqrt(Q_NM2 ** 2 + 4 * Q_NM2 * R_NM2)) / 2       # P_minus that repeats itself
+print("gain in runs 1 to 6:", np.round(gains[:6], 3))
+print(f"gain in run 30: {gains[-1]:.4f}; steady gain from Q and R: {P_steady / (P_steady + R_NM2):.4f}")"""),
+md("""**What to notice.** The gain starts near 0.5, because after one qualification run the estimate is no better than one observation, and it settles near 0.22 within ten runs. From then on, the Kalman filter is an EWMA with λ ≈ 0.22. This is an old result: Muth (1960) showed that exponential smoothing is the best forecast for a quantity that follows a random walk observed with noise, and the steady Kalman gain is its weight. What the Kalman filter adds is that the weight comes from Q and R, stated quantities, and that it adapts after a start or a gap."""),
+md("""## Step 7: compare the controllers on the same disturbances
+
+The cell runs the three controllers on the example furnace and prints the three numbers this lab reports for each: the **mean absolute error** of the achieved thickness (nm), the **largest deviation** from the target (nm), and the number of **runs held at a recipe limit**."""),
+code("""logs = {"fixed 90 min": log_fixed,
+        "EWMA, lambda 0.2": log_ewma,
+        "Kalman": closed_loop(2026, "kalman", next_time=next_time, kalman_update=kalman_update)}
+log_kalman = logs["Kalman"]
+print(compare(logs).round(3).to_string())
+plot_runs(logs, setup, title="Drift scenario, example furnace")"""),
+md("""Write down the Kalman controller's mean absolute error, to 2 decimals: the lab check asks for it.
+
+**What to notice.** Both controllers hold the thickness within a few tenths of a nanometre of the target, about six times closer than the fixed recipe, and neither reaches a time limit. The Kalman filter is a little better here: its gain starts larger, so it settles faster after the qualification run, and its steady gain, 0.22, is a little above the EWMA's 0.2. Both estimates of d fall over the run sequence as the bias grows: that is the drift the controller compensates."""),
+md("""## Step 8: choosing λ
+
+λ trades noise against lag. The cell runs the EWMA controller with six values of λ, on the same disturbances."""),
+code("""rows = []
+for lam in [0.05, 0.1, 0.2, 0.3, 0.5, 1.0]:
+    log = closed_loop(2026, "ewma", next_time=next_time, ewma_update=ewma_update, lam=lam)
+    rows.append({"lambda": lam, **summary(log)})
+lam_table = pd.DataFrame(rows)
+print(lam_table.round(3).to_string(index=False))"""),
+md("""**What to notice.** A small λ averages over many runs and lags behind the drift: with λ = 0.05 the estimate trails the offset by most of a nanometre. λ = 1 uses only the last observation, so every run's noise goes straight into the next recipe, and the error is about one and a half times that of the best λ. The best λ lies in between, here near 0.3, a little above the Kalman filter's steady gain, because this drift has a steady trend that a random walk does not describe. The best value depends on how much the offset moves compared with the noise, which is what Q and R state."""),
+md("""## Step 9: the run with no measurement
+
+One run of the example furnace has no monitor-wafer measurement (the metrology tool was down). The cell shows the rows around it for the two estimators."""),
+code("""gap = int(log_kalman.loc[log_kalman["measured_nm"].isna(), "run"].iloc[0])
+cols = ["run", "ox_time_min", "measured_nm", "offset_nm", "d_hat_nm", "P_nm2"]
+print("EWMA, lambda 0.2:")
+print(log_ewma.loc[log_ewma["run"].between(gap - 1, gap + 1), cols[:-1]].round(4).to_string(index=False))
+print("Kalman:")
+print(log_kalman.loc[log_kalman["run"].between(gap - 1, gap + 1), cols].round(4).to_string(index=False))
+P_before = log_kalman.loc[log_kalman["run"] == gap - 1, "P_nm2"].iloc[0]
+P_gap = log_kalman.loc[log_kalman["run"] == gap, "P_nm2"].iloc[0]
+print(f"Kalman gain for the run after the gap: {(P_gap + Q_NM2) / (P_gap + Q_NM2 + R_NM2):.3f} "
+      f"(steady: {(P_before + Q_NM2) / (P_before + Q_NM2 + R_NM2):.3f})")"""),
+md("""**What to notice.** Both estimators keep their estimate through the run with no measurement, so the next recipe is the same as the last. The Kalman filter also records that it knows less: P grows by Q, and the next measurement gets a slightly larger weight. The gap costs little here because the drift is slow; a twin that loses many measurements in a row should widen its uncertainty in the same way, and say so."""),
+md("""## Step 10: advisory and automatic mode
+
+So far the controller has run every recommendation: **automatic mode**. Many fabs start a new controller in **advisory mode**: it recommends, and an engineer accepts each change before it reaches the furnace. In `closed_loop(..., mode="advisory", review_every=3)`, the engineer reviews the recommendation once every three runs, for example once a shift; between reviews, the last approved time keeps running. The estimator still learns from every run."""),
+code("""log_adv = closed_loop(2026, "kalman", next_time=next_time, kalman_update=kalman_update, mode="advisory", review_every=3)
+print(compare({"Kalman, automatic": log_kalman, "Kalman, advisory (every 3 runs)": log_adv}).round(3).to_string())
+print(log_adv[["run", "recommended_min", "ox_time_min"]].head(7).round(2).to_string(index=False))"""),
+md("""**What to notice.** With a drift this slow, reviewing every third run raises the mean absolute error by only about a hundredth of a nanometre, and the engineer sees every change before it is made. Advisory mode builds trust in a new controller and catches a recommendation that makes no sense. Automatic mode removes the delay and the workload, but then nobody looks at each decision, so the controller needs limits, which the recipe rule has, and **alarms**, which you write next."""),
+md("""## Step 11: your task, the recalibration alarm `alarm_run()`
+
+A controller that compensates drift also **hides** it: the thickness chart in Step 7 looks healthy while the thermocouple drifts further every run. The drift is still visible in the estimate itself. The estimate has moved away from d_ref, the offset at qualification, by an amount that measures the drift in nanometres; at about 0.5 nm per degree, 2 nm is about 4 °C.
+
+The lab's rule: when **|d̂ − d_ref| > 2.0 nm for 3 runs in a row**, schedule a **temperature calibration** of the furnace (a profile run with a reference thermocouple). Requiring several runs in a row keeps one noisy run from raising the alarm. A calibration removes the bias, and d returns to d_ref.
+
+**Your task:** write `alarm_run(offsets, limit, k)`. `offsets` is a sequence in run order, the first value for run 1: a list, a NumPy array or a pandas Series. Return the **run number** (1 for the first value) of the run that completes the first streak of k runs in a row with |offset| > limit. Return `None` if that never happens. A value exactly at the limit does not count, and a run back inside the limit resets the count to 0."""),
+code("""def alarm_run(offsets, limit, k):
+    \"\"\"Run number (1 for the first value) at which abs(offset) > limit for the k-th run in a row; None if never.\"\"\"
+    # YOUR CODE HERE
+    raise NotImplementedError("Complete alarm_run() first.")"""),
+code("""print(alarm_run([0.5, 2.5, 2.6, 1.0, 2.1, -2.2, 2.3, 0.0], 2.0, 3), "  (should be 7)")
+print(alarm_run([2.0, 2.0, 2.0, 2.0], 2.0, 3), "  (should be None: exactly at the limit)")
+
+for name in ["EWMA, lambda 0.2", "Kalman"]:
+    drift_nm = logs[name]["d_hat_nm"] - d_ref
+    print(f"{name}: estimate moved {drift_nm.iloc[-1]:+.2f} nm by run 60; "
+          f"alarm at run {alarm_run(drift_nm, ALARM_LIMIT_NM, ALARM_RUNS)}")"""),
+md("""**What to notice.** In the drift scenario the alarm fires in the second half of the run sequence, while the thickness is still on target: the calibration can be planned, and the controller keeps the product right until then. Without the alarm, the first sign of trouble would come much later, when the oxidation time reaches its limit."""),
+md("""## Step 12: a failing thermocouple
+
+In the `"failing"` scenario, the same furnace's thermocouple starts to fail: from a run between 25 and 35, its bias grows several times faster. Everything else, the noise and the missing run included, is the same as in the drift scenario."""),
+code("""fail_logs = {"fixed 90 min": closed_loop(2026, "fixed", scenario="failing"),
+             "EWMA, lambda 0.2": closed_loop(2026, "ewma", next_time=next_time, ewma_update=ewma_update, scenario="failing"),
+             "Kalman": closed_loop(2026, "kalman", next_time=next_time, kalman_update=kalman_update, scenario="failing")}
+print(compare(fail_logs).round(3).to_string())
+for name in ["EWMA, lambda 0.2", "Kalman"]:
+    log = fail_logs[name]
+    held_runs = log.loc[log["held"], "run"].tolist()
+    print(f"{name}: alarm at run {alarm_run(log['d_hat_nm'] - d_ref, ALARM_LIMIT_NM, ALARM_RUNS)}, "
+          f"first run held at a limit: {held_runs[0] if held_runs else None}")
+plot_runs(fail_logs, setup, title="Failing thermocouple, example furnace")"""),
+md("""Write down the run at which the alarm fires for the **Kalman** controller, and the number of runs it holds at a limit: the lab check asks about them.
+
+**What to notice.** The controllers follow the faster drift for a while, until the oxidation time reaches the 100-minute limit. From then on they are **held at the limit**: the recipe cannot add more time, and the thickness falls below target run after run. Control cannot fix a failing sensor. The alarm fired about ten runs before the first held run: time to stop the furnace and call maintenance before product goes off target. Module 6 uses such early warnings to plan maintenance."""),
+md("""## Step 13: your own furnace
+
+Open the **Module 5 Lab Check** in Canvas. Question 1 gives you a **KEY**, a whole number from 100 to 999. Type it below in place of `None` and run the cell. It runs the Kalman controller on **your furnace** in the drift scenario, with **your functions**, and prints the oxidation time it recommends for **run 61**, the next run after the 60 in the log."""),
+code("""KEY = None      # <- your KEY from Question 1 of the lab check, for example KEY = 417
+
+if KEY is None:
+    print("Type your KEY in place of None, then run this cell again.")
+else:
+    mine = r2r_setup(KEY)
+    log_mine = closed_loop(KEY, "kalman", next_time=next_time, kalman_update=kalman_update)
+    d_ref_mine = qualification_offset(mine)
+    print(f"KEY {KEY}: target {mine['target_nm']} nm; offset at qualification {d_ref_mine:.3f} nm")
+    print("Kalman controller:", {k: round(v, 3) for k, v in summary(log_mine).items()})
+    print(f"estimate after run 60: {log_mine['d_hat_nm'].iloc[-1]:.3f} nm; "
+          f"alarm at run {alarm_run(log_mine['d_hat_nm'] - d_ref_mine, ALARM_LIMIT_NM, ALARM_RUNS)}")
+    t61 = next_time(log_mine["d_hat_nm"].iloc[-1], mine["target_nm"], mine["B"], mine["BA"], mine["xi_nm"], mine["t_limits"])
+    print(f"recommended oxidation time for run 61: {t61:.3f} min")"""),
+md("""## Step 14: check your work
+
+The cell below tests your four functions on cases you cannot see. If all pass, it prints your **verification value**: the oxidation time, in minutes, that the Kalman controller recommends for run 61 of your furnace, computed with the course's reference functions. It should match the last number Step 13 printed. Type it into Question 1 of the lab check.
+
+If it says **NOT PASSED**, read the message: it tells you what to fix."""),
+code("""# The course's check code is in dt_m5_check.py, next to this notebook.
+# It is kept out of the notebook so that the course's reference solutions are not on screen.
+from dt_m5_check import check_dt_module5
+
+passed, messages, value = check_dt_module5(ewma_update, kalman_update, next_time, alarm_run, KEY)
+for line in messages:
+    print(line)
+if passed:
+    print()
+    print(f"Verification value for KEY = {KEY}: {value:.3f}")
+    print("Type this number into Question 1 of the Module 5 Lab Check.")"""),
+md("""## What this means for the twin
+
+The twin now stays in step with a furnace that changes. After every run it compares one measurement with its own prediction, keeps an estimate of the difference, and uses that estimate to set the next run: the step from a model that only predicts to a twin that acts. The same estimate tells the fab how far the furnace has drifted from where it was qualified, which is the basis of the alarm and of the maintenance decisions in Module 6. Two limits stay: a controller can only move within its recipe limits, and it can only correct what its single measurement sees. A failing sensor needs repair, not control.
+
+**Claim only what the data support.** On simulated data, a good score shows that the controllers handle the course's simulated drift. It does not show how they would perform on a real furnace, whose drift, noise and missing data have to be studied first.
+
+To keep a copy of this notebook, choose **File > Download**."""),
+]
+
+nb = nbf.v4.new_notebook(cells=cells, metadata=META)
+for i, c in enumerate(nb.cells):
+    c["id"] = f"m5-{i:02d}"
+text = nbf.writes(nb)
+assert "—" not in text and "–" not in text, "em or en dash in notebook text"
+(OUT / NAME).write_text(text)
+print("wrote", OUT / NAME, len(cells), "cells")
+
+# ---------------------------------------------------------------- optional Google Colab copy
+COLAB = ROOT / "colab" / "m5"
+COLAB.mkdir(parents=True, exist_ok=True)
+CNAME = "DT-M5-lab-run-to-run-colab.ipynb"
+RAW = "https://raw.githubusercontent.com/CSU-Physics/digital-twins-notebooks/main/content/m5/"
+colab_cells = [cells[0],
+               md("""## Colab only: get the course files
+
+You are running the **Google Colab** copy of this lab. Colab needs three course files next to the notebook: `furnace.py`, the furnace simulator, `r2r_tools.py`, the helpers, and `dt_m5_check.py`, the check code. Run the cell below once each time you open the notebook; it downloads them from the course repository. Everything else is the same as in the Canvas version, and your verification value is the same."""),
+               code(f"""import urllib.request
+
+BASE = "{RAW}"
+for name in ["furnace.py", "r2r_tools.py", "dt_m5_check.py"]:
+    urllib.request.urlretrieve(BASE + name, name)
+    print("downloaded", name)""")] + cells[1:]
+cnb = nbf.v4.new_notebook(cells=colab_cells, metadata={"colab": {"provenance": []},
+                                                       "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+                                                       "language_info": {"name": "python"}})
+for i, c in enumerate(cnb.cells):
+    c["id"] = f"m5c-{i:02d}"
+ctext = nbf.writes(cnb)
+assert "—" not in ctext and "–" not in ctext
+(COLAB / CNAME).write_text(ctext)
+print("wrote", COLAB / CNAME, len(colab_cells), "cells")

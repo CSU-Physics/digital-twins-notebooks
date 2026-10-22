@@ -1,0 +1,34 @@
+"""Answer sets for Question 1 of the Module 5 lab check: 200 KEYs and their verification values.
+Writes dt_m5_solutions.json at the repository root (gitignored: it holds every answer).
+
+A KEY is skipped if its value is close to a rounding boundary, so that a different floating-point library cannot round
+it the other way, or if the time for run 61 sits at a recipe limit (it never does in the drift scenario; the test guards it)."""
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(ROOT / "content" / "m5"), str(ROOT / "checks")]
+from dt_m5_check import personal_raw  # noqa: E402
+import furnace  # noqa: E402
+
+rng = np.random.default_rng(20261025)
+keys = [int(k) for k in rng.choice(np.arange(100, 1000), size=260, replace=False)]   # random order, so the 200 kept span 100 to 999
+sets, skipped = [], []
+for k in keys:
+    raw = personal_raw(k)
+    furnace._R2R_CACHE.clear()
+    if abs((raw * 1000) % 1 - 0.5) < 0.02 or not (80.0 < raw < 100.0):
+        skipped.append(k)
+        continue
+    sets.append({"key": k, "value": round(raw, 3)})
+    if len(sets) == 200:
+        break
+assert len(sets) == 200
+sets.sort(key=lambda d: d["key"])
+json.dump(sets, open(ROOT / "dt_m5_solutions.json", "w"))
+vals = [s["value"] for s in sets]
+print("200 sets; KEYs", sets[0]["key"], "to", sets[-1]["key"], "; values", min(vals), "to", max(vals), "; distinct", len(set(vals)),
+      "; skipped", len(skipped))
