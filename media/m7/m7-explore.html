@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module 7 Explorer: Validation and the Data Sheet</title>
+<style>
+  :root { --maroon:#99004C; --ink:#24313D; --muted:#6A626B; --line:#E4DCE0; --tint:#F8F4F6; --ok:#2E7D4F; --bad:#B3261E; --blue:#2F5E8E; --gold:#A06A00; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:"Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:15px; }
+  .tabs { display:flex; border-bottom:2px solid var(--line); background:var(--tint); }
+  .tabs button { flex:1; border:0; background:none; padding:10px 8px; font-size:15px; cursor:pointer; color:var(--muted); border-bottom:3px solid transparent; }
+  .tabs button.on { color:var(--maroon); border-bottom-color:var(--maroon); font-weight:600; background:#fff; }
+  .tool { display:none; padding:12px 16px; }
+  .tool.on { display:block; }
+  h2 { font-family:Georgia, serif; color:var(--maroon); font-size:19px; margin:0 0 4px; }
+  .hint { color:var(--muted); margin:0 0 10px; line-height:1.45; }
+  .grid { display:grid; grid-template-columns: 270px 1fr; gap:14px; align-items:start; }
+  @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+  .box { border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:0; }
+  .box h3 { margin:0 0 6px; font-size:14.5px; color:var(--maroon); }
+  label { display:flex; justify-content:space-between; align-items:center; margin:8px 0 2px; font-size:14px; gap:8px; }
+  label input[type=number] { width:70px; font-size:14px; padding:2px 4px; border:1px solid var(--line); border-radius:4px; text-align:right; }
+  input[type=range] { width:100%; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  button.act { border:2px solid var(--ink); background:#fff; color:var(--ink); padding:5px 11px; border-radius:5px; font-size:14px; cursor:pointer; }
+  button.act.main { border-color:var(--maroon); color:var(--maroon); font-weight:600; }
+  .chk { display:flex; align-items:center; gap:6px; font-size:14px; margin-top:8px; justify-content:flex-start; }
+  svg.plot { width:100%; height:auto; display:block; }
+  .stats { font-size:14px; line-height:1.5; margin-top:4px; }
+  .stats table { border-collapse:collapse; width:100%; font-size:13px; }
+  .stats th, .stats td { border:1px solid var(--line); padding:2px 5px; text-align:right; }
+  .stats th:first-child, .stats td:first-child { text-align:left; }
+  .stats th { background:var(--tint); font-weight:600; }
+  .note { margin-top:6px; padding:6px 10px; border-radius:4px; font-size:13.5px; background:#EEF6F0; color:var(--ok); line-height:1.4; }
+  .note.warn { background:#FFF7E0; color:#7A5C00; }
+  .note.info { background:var(--tint); color:var(--ink); }
+  .note.bad { background:#FBEAEA; color:var(--bad); }
+  .small { font-size:12.5px; color:var(--muted); margin:6px 0 0; line-height:1.4; }
+  .credit { color:var(--muted); font-size:12px; padding:8px 16px 12px; border-top:1px solid var(--line); }
+  .case { background:var(--tint); border-radius:6px; padding:8px 12px; font-size:13.5px; line-height:1.45; }
+  .case table { border-collapse:collapse; margin-top:6px; font-size:13px; }
+  .case th, .case td { border:1px solid var(--line); padding:2px 6px; text-align:left; background:#fff; }
+  .case th { background:#fff; color:var(--maroon); }
+  fieldset { border:1px solid var(--line); border-radius:6px; margin:8px 0 0; padding:6px 10px 8px; min-width:0; }
+  legend { font-weight:600; color:var(--maroon); font-size:14px; padding:0 4px; }
+  .opt { display:flex; gap:7px; align-items:flex-start; font-size:13.5px; line-height:1.35; margin:4px 0; justify-content:flex-start; }
+  .opt input { margin-top:3px; flex:0 0 auto; }
+  .fb { font-size:13px; margin-top:4px; padding:4px 8px; border-radius:4px; display:none; line-height:1.4; }
+  .fb.ok { display:block; background:#EEF6F0; color:var(--ok); }
+  .fb.no { display:block; background:#FBEAEA; color:var(--bad); }
+  .two { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  @media (max-width: 680px) { .two { grid-template-columns: 1fr; } }
+  select { font-size:14px; padding:2px 4px; }
+</style>
+</head>
+<body>
+<div class="tabs" role="tablist">
+  <button type="button" data-t="verdict" role="tab">1. Error, interval and verdict</button>
+  <button type="button" data-t="sheet" role="tab">2. Fill in a data sheet</button>
+</div>
+
+<!-- TOOL 1: the verdict -->
+<section class="tool" id="t-verdict" role="tabpanel">
+  <h2>How sure is a validation result?</h2>
+  <p class="hint">A simulated twin is tested on held-out runs of five wafers each. Each run's errors share a run effect, so the run is the test unit. Set the twin's true error and the test, then compare the interval with the tolerance. In a simulation the true error is known; in a fab it is not.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>The twin and the test</h3>
+      <label for="tol">Tolerance on the MAE (nm) <input type="number" id="tolN" min="0.2" max="1" step="0.05" value="0.5" aria-label="Tolerance in nm"></label>
+      <input type="range" id="tol" min="0.2" max="1" step="0.05" value="0.5">
+      <label for="lev">The twin's true MAE (nm) <input type="number" id="levN" min="0.1" max="1.2" step="0.05" value="0.4" aria-label="True mean absolute error in nm"></label>
+      <input type="range" id="lev" min="0.1" max="1.2" step="0.05" value="0.4">
+      <label for="nr">Held-out runs <input type="number" id="nrN" min="5" max="120" step="1" value="20" aria-label="Number of held-out runs"></label>
+      <input type="range" id="nr" min="5" max="120" step="1" value="20">
+      <label class="chk"><input type="checkbox" id="wafer"> also treat each wafer as a test unit (a mistake)</label>
+      <div class="row"><button type="button" class="act" id="newData">New test data</button><button type="button" class="act" id="rep">Repeat the test 400 times</button></div>
+      <p class="small">Each wafer's error is a run effect shared by the run's five wafers (60 % of the variance) plus its own (40 %). The interval is MAE ± t(0.975, n − 1) · s / √n over the test units.</p>
+    </div>
+    <div class="box">
+      <h3>Errors of the held-out runs, and the verdict</h3>
+      <svg class="plot" id="runSvg" viewBox="0 0 560 150" role="img" aria-label="Mean absolute error of each held-out run, with the tolerance"></svg>
+      <svg class="plot" id="ciSvg" viewBox="0 0 560 130" role="img" aria-label="The MAE with its 95 percent interval against the tolerance, and the true MAE"></svg>
+      <div class="stats" id="statsV"></div>
+      <div class="note info" id="msgV"></div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOL 2: the data sheet -->
+<section class="tool" id="t-sheet" role="tabpanel">
+  <h2>Fill in the data sheet of an etch-depth twin</h2>
+  <p class="hint">Practice on a twin that is not one of the capstone tracks. Read its test results, fill in the fields, and press Check. Then switch to the second set of results and see which fields must change.</p>
+  <div class="case" id="caseBox"></div>
+  <div class="row"><label for="scen" style="margin:0">Test results <select id="scen" aria-label="Choose the set of test results"><option value="A">set 1</option><option value="B">set 2</option></select></label></div>
+  <div class="two">
+    <div>
+      <fieldset id="f1"><legend>1. Intended use and modeled asset</legend></fieldset>
+      <fieldset id="f2"><legend>2. Data sources and update frequency</legend></fieldset>
+      <fieldset id="f3"><legend>3. Validation verdicts</legend>
+        <label for="vh" style="margin-top:2px">held-out test <select id="vh"><option value="">choose</option><option>meets</option><option>misses</option><option>insufficient evidence</option></select></label>
+        <label for="vc">challenging test <select id="vc"><option value="">choose</option><option>meets</option><option>misses</option><option>insufficient evidence</option></select></label>
+        <div class="fb" id="fb3"></div>
+      </fieldset>
+    </div>
+    <div>
+      <fieldset id="f4"><legend>4. Do not use for (tick all that apply)</legend></fieldset>
+      <fieldset id="f5"><legend>5. One risk and its mitigation</legend></fieldset>
+      <fieldset id="f6"><legend>6. Action when confidence is low</legend></fieldset>
+    </div>
+  </div>
+  <div class="row"><button type="button" class="act main" id="check">Check the data sheet</button><button type="button" class="act" id="reset">Clear</button></div>
+  <div class="note info" id="msgS">Fill in the six fields, then press Check.</div>
+</section>
+
+<div class="credit">Module 7 explorer · Digital Twins for Semiconductor Manufacturing · SemiAcademy / ISEP-CSU · CC BY 4.0. Interval of a mean absolute error with the t distribution (Law, 2015); data sheet after datasheets for datasets (Gebru et al., 2021) and model cards (Mitchell et al., 2019); risks after NIST IR 8356 (2025). The etch-depth twin and every value shown are simulated.</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  function sv(svg, tag, at, txt) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (txt !== undefined) e.textContent = txt; svg.appendChild(e); return e; }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function f(v, d) { var s = v.toFixed(d); return (s === '-' + (0).toFixed(d)) ? (0).toFixed(d) : s; }
+  function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function gauss(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function pair(range, num, cb) {
+    range.addEventListener('input', function () { num.value = range.value; cb(); });
+    num.addEventListener('change', function () {
+      var v = parseFloat(num.value), lo = parseFloat(range.min), hi = parseFloat(range.max), st = parseFloat(range.step);
+      if (isNaN(v)) v = parseFloat(range.value);
+      v = Math.min(hi, Math.max(lo, Math.round(v / st) * st)); v = Math.round(v * 100) / 100;
+      num.value = v; range.value = v; cb();
+    });
+  }
+  // t quantiles t(0.975, df)
+  var TQ = { 1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228, 11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131, 16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086, 25: 2.060, 30: 2.042, 40: 2.021, 60: 2.000, 120: 1.980 };
+  function tcrit(df) {
+    if (TQ[df]) return TQ[df];
+    var ks = [20, 25, 30, 40, 60, 120];
+    if (df > 120) return 1.96 + (1.98 - 1.96) * 120 / df;
+    for (var i = 0; i < ks.length - 1; i++) if (df > ks[i] && df < ks[i + 1]) {
+      var a = 1 / ks[i], b = 1 / ks[i + 1], x = 1 / df; return TQ[ks[i + 1]] + (TQ[ks[i]] - TQ[ks[i + 1]]) * (x - b) / (a - b);
+    }
+    return 1.98;
+  }
+  function meanSd(a) { var m = 0, i; for (i = 0; i < a.length; i++) m += a[i]; m /= a.length; var s = 0; for (i = 0; i < a.length; i++) s += (a[i] - m) * (a[i] - m); return [m, a.length > 1 ? Math.sqrt(s / (a.length - 1)) : 0]; }
+  function maeCi(a) { var ms = meanSd(a); return [ms[0], tcrit(a.length - 1) * ms[1] / Math.sqrt(a.length), a.length]; }
+  function verdict(m, h, tol) { return (m + h <= tol + 1e-12) ? 'meets' : (m - h > tol) ? 'misses' : 'insufficient evidence'; }
+  var VCOL = { 'meets': '#2E7D4F', 'misses': '#B3261E', 'insufficient evidence': '#A06A00' };
+
+  // ---------------------------------------------------------------- tabs
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs button'));
+  function openTab(t) {
+    tabs.forEach(function (b) { b.classList.toggle('on', b.dataset.t === t); });
+    document.querySelectorAll('.tool').forEach(function (s) { s.classList.toggle('on', s.id === 't-' + t); });
+  }
+  tabs.forEach(function (b) { b.onclick = function () { openTab(b.dataset.t); }; });
+  function fromHash() { openTab(location.hash.indexOf('sheet') >= 0 ? 'sheet' : 'verdict'); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // ---------------------------------------------------------------- tool 1: error, interval and verdict
+  var SQ = Math.sqrt(2 / Math.PI), RUN_SHARE = 0.6, WAFERS = 5, seedV = 7, MAXR = 120, MAXREP = 400;
+  // E|e| for e = u + w with u ~ N(0, su), w ~ N(0, sw): the twin's true MAE is lev, so the total sd is lev / sqrt(2 / pi)
+  function makeTest(seed) {                 // standard normal draws, reused for every setting (so sliders move smoothly)
+    var r = rng(seed), u = [], w = [], k, j;
+    for (k = 0; k < MAXR; k++) { u.push(gauss(r)); var row = []; for (j = 0; j < WAFERS; j++) row.push(gauss(r)); w.push(row); }
+    return { u: u, w: w };
+  }
+  function evalTest(T, lev, n) {
+    var s = lev / SQ, su = s * Math.sqrt(RUN_SHARE), sw = s * Math.sqrt(1 - RUN_SHARE);
+    var perRun = [], perWafer = [], k, j;
+    for (k = 0; k < n; k++) {
+      var a = 0;
+      for (j = 0; j < WAFERS; j++) { var e = Math.abs(su * T.u[k] + sw * T.w[k][j]); a += e; perWafer.push(e); }
+      perRun.push(a / WAFERS);
+    }
+    return { perRun: perRun, run: maeCi(perRun), wafer: maeCi(perWafer) };
+  }
+  var testV = makeTest(seedV), repStats = null;
+  function drawRuns(R, tol, lev, n) {
+    var svg = $('runSvg'); clear(svg);
+    var W = 560, H = 150, L = 46, Rm = 10, Tp = 10, B = 30;
+    var ymax = Math.max(tol * 1.6, Math.max.apply(null, R.perRun) * 1.1, 0.5);
+    var X = function (k) { return L + (k + 0.5) / n * (W - L - Rm); }, Y = function (v) { return H - B - v / ymax * (H - Tp - B); };
+    [0, ymax / 2, ymax].forEach(function (v) {
+      sv(svg, 'line', { x1: L, y1: Y(v), x2: W - Rm, y2: Y(v), stroke: '#E4DCE0' });
+      sv(svg, 'text', { x: L - 6, y: Y(v) + 4, 'font-size': 11.5, fill: '#6A626B', 'text-anchor': 'end' }, f(v, 2));
+    });
+    sv(svg, 'line', { x1: L, y1: Y(tol), x2: W - Rm, y2: Y(tol), stroke: '#24313D', 'stroke-width': 1.5, 'stroke-dasharray': '6 4' });
+    sv(svg, 'text', { x: W - Rm - 2, y: Y(tol) - 4, 'font-size': 11.5, fill: '#24313D', 'text-anchor': 'end' }, 'tolerance');
+    R.perRun.forEach(function (v, k) { sv(svg, 'circle', { cx: X(k), cy: Y(v), r: n > 60 ? 2.2 : 3.2, fill: v > tol ? '#B3261E' : '#2F5E8E', opacity: 0.85 }); });
+    sv(svg, 'line', { x1: L, y1: H - B, x2: W - Rm, y2: H - B, stroke: '#24313D', 'stroke-width': 1.5 });
+    sv(svg, 'text', { x: (L + W - Rm) / 2, y: H - 8, 'font-size': 12, fill: '#6A626B', 'text-anchor': 'middle' }, 'held-out run (' + n + ' runs, 5 wafers each)');
+    sv(svg, 'text', { x: 12, y: (Tp + H - B) / 2, 'font-size': 12, fill: '#6A626B', 'text-anchor': 'middle', transform: 'rotate(-90 12 ' + ((Tp + H - B) / 2) + ')' }, 'run MAE (nm)');
+  }
+  function drawCi(R, tol, lev, showW) {
+    var svg = $('ciSvg'); clear(svg);
+    var W = 560, H = 130, L = 150, Rm = 20;
+    var xmax = Math.max(tol * 2, R.run[0] + R.run[1], lev) * 1.15;
+    var X = function (v) { return L + v / xmax * (W - L - Rm); };
+    sv(svg, 'rect', { x: X(0), y: 8, width: X(tol) - X(0), height: 92, fill: '#2E7D4F', opacity: 0.08 });
+    sv(svg, 'line', { x1: X(tol), y1: 6, x2: X(tol), y2: 102, stroke: '#24313D', 'stroke-width': 2, 'stroke-dasharray': '6 4' });
+    sv(svg, 'line', { x1: X(lev), y1: 6, x2: X(lev), y2: 102, stroke: '#6A626B', 'stroke-width': 1.5, 'stroke-dasharray': '2 3' });
+    sv(svg, 'text', { x: X(tol), y: 116, 'font-size': 11.5, fill: '#24313D', 'text-anchor': 'middle' }, 'tolerance ' + f(tol, 2));
+    sv(svg, 'text', { x: X(lev), y: 128, 'font-size': 11, fill: '#6A626B', 'text-anchor': 'middle' }, 'true MAE ' + f(lev, 2));
+    function bar(y, ci, label) {
+      var v = verdict(ci[0], ci[1], tol), col = VCOL[v];
+      sv(svg, 'line', { x1: X(Math.max(0, ci[0] - ci[1])), y1: y, x2: X(ci[0] + ci[1]), y2: y, stroke: col, 'stroke-width': 5 });
+      sv(svg, 'circle', { cx: X(ci[0]), cy: y, r: 5, fill: col });
+      sv(svg, 'text', { x: L - 8, y: y + 4, 'font-size': 12, fill: '#24313D', 'text-anchor': 'end' }, label);
+    }
+    bar(32, R.run, 'runs as units');
+    if (showW) bar(76, R.wafer, 'wafers as units');
+  }
+  function coverage(lev, n, tol) {         // 400 repeated tests: how often each verdict, and how often the interval holds the true MAE
+    var c = { run: 0, wafer: 0 }, vs = { 'meets': 0, 'misses': 0, 'insufficient evidence': 0 };
+    for (var i = 0; i < MAXREP; i++) {
+      var R = evalTest(makeTest(5000 + i), lev, n);
+      if (Math.abs(R.run[0] - lev) <= R.run[1]) c.run++;
+      if (Math.abs(R.wafer[0] - lev) <= R.wafer[1]) c.wafer++;
+      vs[verdict(R.run[0], R.run[1], tol)]++;
+    }
+    return { c: c, vs: vs };
+  }
+  function drawV() {
+    var tol = parseFloat($('tol').value), lev = parseFloat($('lev').value), n = parseInt($('nr').value, 10), showW = $('wafer').checked;
+    var R = evalTest(testV, lev, n);
+    drawRuns(R, tol, lev, n);
+    drawCi(R, tol, lev, showW);
+    var v = verdict(R.run[0], R.run[1], tol), vw = verdict(R.wafer[0], R.wafer[1], tol);
+    var html = '<table><tr><th>test units</th><th>n</th><th>MAE (nm)</th><th>95 % half-width</th><th>interval</th><th>verdict</th></tr>' +
+      '<tr><td>runs</td><td>' + n + '</td><td>' + f(R.run[0], 3) + '</td><td>' + f(R.run[1], 3) + '</td><td>' + f(R.run[0] - R.run[1], 2) + ' to ' + f(R.run[0] + R.run[1], 2) + '</td><td style="color:' + VCOL[v] + '">' + v + '</td></tr>' +
+      (showW ? '<tr><td>wafers (a mistake)</td><td>' + (n * WAFERS) + '</td><td>' + f(R.wafer[0], 3) + '</td><td>' + f(R.wafer[1], 3) + '</td><td>' + f(R.wafer[0] - R.wafer[1], 2) + ' to ' + f(R.wafer[0] + R.wafer[1], 2) + '</td><td style="color:' + VCOL[vw] + '">' + vw + '</td></tr>' : '') + '</table>';
+    if (repStats && repStats.key === [lev, n, tol].join()) {
+      var s = repStats;
+      html += '<div class="small" style="margin-top:4px">' + MAXREP + ' repeated tests with these settings: meets ' + s.vs['meets'] + ', insufficient evidence ' + s.vs['insufficient evidence'] + ', misses ' + s.vs['misses'] +
+        '. The interval held the true MAE in ' + f(100 * s.c.run / MAXREP, 0) + ' % of them with runs as units, and in ' + f(100 * s.c.wafer / MAXREP, 0) + ' % with wafers as units.</div>';
+    }
+    $('statsV').innerHTML = html;
+    var msg = $('msgV'), txt, cls = 'note info';
+    if (v === 'meets') { cls = 'note'; txt = 'The whole interval, ' + f(R.run[0] - R.run[1], 2) + ' to ' + f(R.run[0] + R.run[1], 2) + ' nm, lies at or below the tolerance: the test supports the claim that the twin meets it.'; }
+    else if (v === 'misses') { cls = 'note bad'; txt = 'The whole interval lies above the tolerance: the twin does not meet it here, and this condition goes on the data sheet as one where it must not be used.'; }
+    else { cls = 'note warn'; txt = 'The interval, ' + f(R.run[0] - R.run[1], 2) + ' to ' + f(R.run[0] + R.run[1], 2) + ' nm, contains the tolerance: this test cannot tell. More held-out runs would narrow it (about as 1/√n).'; }
+    if (showW && vw !== v) txt += ' Counted by wafers, the interval is narrower and the verdict becomes "' + vw + '": the five wafers of a run share the run’s effect, so they are not five independent tests, and that interval is too narrow.';
+    else if (showW) txt += ' Counted by wafers, the interval is narrower than it should be: the five wafers of a run are not independent tests. Press "Repeat the test" to see how often each interval holds the true MAE.';
+    msg.className = cls; msg.textContent = txt;
+    window.__m7v = { R: R, v: v, vw: vw };
+  }
+  pair($('tol'), $('tolN'), drawV);
+  pair($('lev'), $('levN'), drawV);
+  pair($('nr'), $('nrN'), drawV);
+  $('wafer').onchange = drawV;
+  $('newData').onclick = function () { seedV += 1; testV = makeTest(seedV); drawV(); };
+  $('rep').onclick = function () {
+    var tol = parseFloat($('tol').value), lev = parseFloat($('lev').value), n = parseInt($('nr').value, 10);
+    var s = coverage(lev, n, tol); s.key = [lev, n, tol].join(); repStats = s;
+    if (!$('wafer').checked) { $('wafer').checked = true; }
+    drawV();
+  };
+  drawV();
+
+  // ---------------------------------------------------------------- tool 2: the data sheet of an etch-depth twin
+  var TOL = 1.5;
+  var SCEN = {
+    A: { held: [1.02, 0.18, 80], chal: [1.90, 0.60, 12], base: [2.80, 0.30, 80] },
+    B: { held: [1.38, 0.21, 80], chal: [2.60, 0.50, 12], base: [2.80, 0.30, 80] }
+  };
+  var OPT = {
+    f1: { A: 'Depth prediction for every etch chamber in the fab.', B: 'Advisory prediction of the trench depth of each lot on one plasma etch chamber, recipe ET-40, to choose which lots to send to measurement.',
+          C: 'Automatic adjustment of the etch time of every lot, validated for production.', D: 'Prediction of when the chamber needs its next wet clean.' },
+    f2: { A: '120 training lots with measured depth fit the model once; in production, each lot’s trace summary and one measured wafer per lot update the offset estimate after every lot.',
+          B: 'The chamber’s design values; no measurements.', C: 'The 120 training lots only; nothing updates the model in production.', D: 'Every wafer is measured and the model is refitted after every lot.' },
+    f4: { A: 'Recipes other than ET-40, or other chambers.', B: 'Normal production lots of ET-40.', C: 'The first lots after a chamber wet clean.', D: 'Lots that follow a lot whose measured wafer was missing (the held-out test included such lots).' },
+    f5: { A: 'Risk: a depth measurement is assigned to the wrong lot. Mitigation: match the lot ID and time stamp with the chamber log, and reject mismatches.',
+          B: 'Risk: a depth measurement is assigned to the wrong lot. Mitigation: widen the tolerance so that such errors pass.',
+          C: 'Risk: a predicted depth is stored as if it were measured. Mitigation: label every value as predicted or measured.',
+          D: 'Risk: a predicted depth is stored as if it were measured. Mitigation: retrain the model every week.' },
+    f6: { A: 'Keep predicting and widen the tolerance.', B: 'Refit the twin on the challenging lots and report that as its validation.',
+          C: 'Measure the depth of every lot until the twin’s errors on the measured wafers are back within tolerance, then use it again.', D: 'Use the baseline for every lot without recording the change.' }
+  };
+  var RIGHT = { f1: 'B', f2: 'A', f5: ['A', 'C'], f6: 'C' };
+  var WHY = {
+    f1: 'The intended use must describe what was built and tested: one chamber, one recipe, advisory use. Wider claims are not supported.',
+    f2: 'This field names the data the twin really uses and how often they update it.',
+    f5: 'The mitigation must reduce the risk it is paired with. Widening a tolerance or retraining does not stop a mix-up or a mislabeled value.',
+    f6: 'When confidence is low, stop relying on the twin, measure instead, and bring it back only on new evidence.'
+  };
+  function radios(fs, name, opts, type) {
+    Object.keys(opts).forEach(function (k) {
+      var lab = document.createElement('label'); lab.className = 'opt';
+      var inp = document.createElement('input'); inp.type = type; inp.name = name; inp.value = k;
+      var sp = document.createElement('span'); sp.textContent = k + '.  ' + opts[k];
+      lab.appendChild(inp); lab.appendChild(sp); fs.appendChild(lab);
+    });
+    var fb = document.createElement('div'); fb.className = 'fb'; fb.id = 'fb' + name.slice(1); fs.appendChild(fb);
+  }
+  ['f1', 'f2', 'f5', 'f6'].forEach(function (id) { radios($(id), id, OPT[id], 'radio'); });
+  radios($('f4'), 'f4', OPT.f4, 'checkbox');
+  function showCase() {
+    var s = SCEN[$('scen').value];
+    function row(name, x) { var v = name === 'baseline' ? '(for comparison)' : verdictWord(x); return '<tr><td>' + name + '</td><td>' + f(x[0], 2) + ' ± ' + f(x[1], 2) + ' nm</td><td>' + x[2] + ' lots</td></tr>'; }
+    function verdictWord() { return ''; }
+    $('caseBox').innerHTML = '<strong>The twin.</strong> It predicts the trench depth of each lot on one plasma etch chamber (recipe ET-40) from the chamber’s trace summary, plus an offset kept in sync by one measured wafer per lot. It was trained on 120 lots. Tolerance, set before the tests: MAE at most ' + TOL + ' nm.' +
+      '<table><tr><th>test</th><th>MAE ± 95 % half-width</th><th>test units</th></tr>' +
+      row('held-out: production lots 121 to 200', s.held) + row('challenging: the 12 lots after a chamber wet clean', s.chal) + row('baseline: mean of the last 5 measured wafers', s.base) + '</table>';
+  }
+  function chosen(name) { var e = document.querySelector('input[name=' + name + ']:checked'); return e ? e.value : null; }
+  function setFb(id, ok, text) { var e = $(id); e.className = 'fb ' + (ok ? 'ok' : 'no'); e.textContent = text; }
+  function check() {
+    var s = SCEN[$('scen').value];
+    var vh = verdict(s.held[0], s.held[1], TOL), vc = verdict(s.chal[0], s.chal[1], TOL), nOk = 0, nAll = 0;
+    ['f1', 'f2', 'f5', 'f6'].forEach(function (id) {
+      var c = chosen(id), good = RIGHT[id] instanceof Array ? RIGHT[id].indexOf(c) >= 0 : c === RIGHT[id];
+      nAll++; if (good) nOk++;
+      setFb('fb' + id.slice(1), good, c === null ? 'Choose one option.' : good ? 'Consistent with the twin and its tests.' : WHY[id]);
+    });
+    var gh = $('vh').value, gc = $('vc').value, ok3 = gh === vh && gc === vc;
+    nAll++; if (ok3) nOk++;
+    setFb('fb3', ok3, ok3 ? 'Both verdicts follow from the intervals.' : 'Compare each interval with the tolerance of ' + TOL + ' nm: held-out ' + f(s.held[0] - s.held[1], 2) + ' to ' + f(s.held[0] + s.held[1], 2) + ' nm, challenging ' + f(s.chal[0] - s.chal[1], 2) + ' to ' + f(s.chal[0] + s.chal[1], 2) + ' nm. Meets: the whole interval at or below; misses: the whole interval above; otherwise insufficient evidence.');
+    var picked = Array.prototype.slice.call(document.querySelectorAll('input[name=f4]:checked')).map(function (e) { return e.value; });
+    var probs = [];
+    if (picked.indexOf('A') < 0) probs.push('List the conditions outside what was trained and tested (option A): nothing supports a claim there.');
+    if (vc !== 'meets' && picked.indexOf('C') < 0) probs.push('The challenging test did not meet the tolerance (' + vc + '), so its condition (option C) must be listed.');
+    if (vh !== 'meets' && picked.indexOf('B') < 0) probs.push('The held-out test did not meet the tolerance (' + vh + '): the twin’s normal use is not supported, so option B must be listed until more data show otherwise.');
+    if (vh === 'meets' && picked.indexOf('B') >= 0) probs.push('The held-out test met the tolerance, so normal production (option B) is supported: do not list it.');
+    if (vh === 'meets' && picked.indexOf('D') >= 0) probs.push('Lots after a missing measurement were part of the held-out test, which met the tolerance: do not list option D.');
+    nAll++; if (!probs.length) nOk++;
+    setFb('fb4', !probs.length, probs.length ? probs.join(' ') : 'Exactly the conditions the tests do not support.');
+    var msg = $('msgS');
+    msg.className = nOk === nAll ? 'note' : 'note warn';
+    msg.textContent = nOk === nAll ? 'All six fields are consistent with the twin and its test results. Now switch the test results to the other set and check again: which fields must change?' :
+      nOk + ' of ' + nAll + ' fields are consistent. Read the notes under the others, change them, and check again.';
+    window.__m7s = { vh: vh, vc: vc, nOk: nOk, nAll: nAll };
+  }
+  $('check').onclick = check;
+  $('reset').onclick = function () {
+    document.querySelectorAll('#t-sheet input').forEach(function (e) { e.checked = false; });
+    $('vh').value = ''; $('vc').value = '';
+    document.querySelectorAll('#t-sheet .fb').forEach(function (e) { e.className = 'fb'; e.textContent = ''; });
+    $('msgS').className = 'note info'; $('msgS').textContent = 'Fill in the six fields, then press Check.';
+  };
+  $('scen').onchange = function () {
+    showCase();
+    document.querySelectorAll('#t-sheet .fb').forEach(function (e) { e.className = 'fb'; e.textContent = ''; });
+    $('msgS').className = 'note info'; $('msgS').textContent = 'New test results. Your answers are kept: press Check to see which fields no longer fit.';
+  };
+  showCase();
+  window.__m7 = { verdict: verdict, maeCi: maeCi, evalTest: evalTest, makeTest: makeTest, coverage: coverage, check: check, SCEN: SCEN, TOL: TOL };
+})();
+</script>
+</body>
+</html>
