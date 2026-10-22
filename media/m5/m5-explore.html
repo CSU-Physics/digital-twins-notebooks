@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module 5 Explorer: Run-to-Run Control</title>
+<style>
+  :root { --maroon:#99004C; --ink:#24313D; --muted:#6A626B; --line:#E4DCE0; --tint:#F8F4F6; --ok:#2E7D4F; --bad:#B3261E; --blue:#2F5E8E; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:"Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:15px; }
+  .tabs { display:flex; border-bottom:2px solid var(--line); background:var(--tint); }
+  .tabs button { flex:1; border:0; background:none; padding:10px 8px; font-size:15px; cursor:pointer; color:var(--muted); border-bottom:3px solid transparent; }
+  .tabs button.on { color:var(--maroon); border-bottom-color:var(--maroon); font-weight:600; background:#fff; }
+  .tool { display:none; padding:12px 16px; }
+  .tool.on { display:block; }
+  h2 { font-family:Georgia, serif; color:var(--maroon); font-size:19px; margin:0 0 4px; }
+  .hint { color:var(--muted); margin:0 0 10px; line-height:1.45; }
+  .grid { display:grid; grid-template-columns: 290px 1fr; gap:14px; align-items:start; }
+  @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+  .box { border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:0; }
+  .box h3 { margin:0 0 6px; font-size:14.5px; color:var(--maroon); }
+  label { display:flex; justify-content:space-between; align-items:center; margin:8px 0 2px; font-size:14px; gap:8px; }
+  label input[type=number] { width:74px; font-size:14px; padding:2px 4px; border:1px solid var(--line); border-radius:4px; text-align:right; }
+  input[type=range] { width:100%; }
+  select { font-size:14px; padding:2px 4px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  button.act { border:2px solid var(--ink); background:#fff; color:var(--ink); padding:5px 11px; border-radius:5px; font-size:14px; cursor:pointer; }
+  .chk { display:flex; align-items:center; gap:6px; font-size:14px; margin-top:8px; justify-content:flex-start; }
+  svg.plot { width:100%; height:auto; display:block; }
+  .stats { font-size:14px; line-height:1.55; margin-top:6px; }
+  .stats table { border-collapse:collapse; width:100%; font-size:13.5px; }
+  .stats th, .stats td { border:1px solid var(--line); padding:3px 6px; text-align:right; }
+  .stats th:first-child, .stats td:first-child { text-align:left; }
+  .stats th { background:var(--tint); font-weight:600; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .note { margin-top:8px; padding:7px 10px; border-radius:4px; font-size:13.5px; background:#EEF6F0; color:var(--ok); line-height:1.45; }
+  .note.warn { background:#FFF7E0; color:#7A5C00; }
+  .note.info { background:var(--tint); color:var(--ink); }
+  .note.bad { background:#FBEAEA; color:var(--bad); }
+  .small { font-size:12.5px; color:var(--muted); margin:6px 0 0; line-height:1.4; }
+  .credit { color:var(--muted); font-size:12px; padding:8px 16px 12px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="tabs" role="tablist">
+  <button type="button" data-t="loop" role="tab">1. Run-to-run control</button>
+  <button type="button" data-t="estimate" role="tab">2. EWMA and Kalman estimates</button>
+</div>
+
+<!-- TOOL 1: the closed loop -->
+<section class="tool" id="t-loop" role="tabpanel">
+  <h2>Holding the thickness on target while the furnace drifts</h2>
+  <p class="hint">A simulated furnace runs recipe DRYOX-90 (target 61.2 nm) for 60 runs while its thermocouple bias grows. After each run an EWMA updates the offset d̂ between the monitor wafer and the twin's Deal-Grove prediction, and the recipe rule sets the next oxidation time, within 80 to 100 minutes. The fixed recipe always runs 90 minutes. Both see the same drift and noise.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Furnace and controller</h3>
+      <label for="dr">Bias growth (°C per run) <input type="number" id="drN" min="0" max="0.3" step="0.01" value="0.08" aria-label="Bias growth in degrees C per run"></label>
+      <input type="range" id="dr" min="0" max="0.3" step="0.01" value="0.08">
+      <label for="nz">Observation noise σ (nm) <input type="number" id="nzN" min="0.1" max="1" step="0.05" value="0.4" aria-label="Observation noise in nm"></label>
+      <input type="range" id="nz" min="0.1" max="1" step="0.05" value="0.4">
+      <label for="lm">EWMA weight λ <input type="number" id="lmN" min="0.05" max="1" step="0.05" value="0.2" aria-label="EWMA weight lambda"></label>
+      <input type="range" id="lm" min="0.05" max="1" step="0.05" value="0.2">
+      <label class="chk"><input type="checkbox" id="gap1" checked> run 39 has no measurement</label>
+      <label class="chk"><input type="checkbox" id="showFix" checked> show the fixed recipe</label>
+      <div class="row"><button type="button" class="act" id="newNoise1">New noise</button></div>
+      <p class="small">Simplified model: one degree of bias costs 0.52 nm at 90 minutes, as in the course's simulated furnace near 1000 °C. The noise splits into the run's own variation, which the product gets, and the monitor wafer's measurement error.</p>
+    </div>
+    <div class="box">
+      <h3>Achieved thickness and oxidation time, run by run</h3>
+      <svg class="plot" id="thkSvg" viewBox="0 0 560 205" role="img" aria-label="Achieved thickness of each run for the EWMA controller and the fixed recipe, with the target"></svg>
+      <svg class="plot" id="timSvg" viewBox="0 0 560 135" role="img" aria-label="Oxidation time of each run, with the recipe limits of 80 and 100 minutes"></svg>
+      <div class="stats" id="statsLoop"></div>
+      <div class="note info" id="msgLoop"></div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOL 2: the two estimators -->
+<section class="tool" id="t-estimate" role="tabpanel">
+  <h2>Two estimators of the same offset</h2>
+  <p class="hint">The true offset d (dashed) moves a little from run to run: a steady drift plus random steps. Each run gives one noisy observation (dots). The <strong>EWMA</strong> blends each observation in with the fixed weight λ; the <strong>Kalman filter</strong> computes its weight, the gain K, from its settings Q and R and from its own uncertainty P. Both start from the true offset with P = R.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>The offset and the noise</h3>
+      <label for="ds">Steady drift (nm per run) <input type="number" id="dsN" min="0" max="0.1" step="0.01" value="0.04" aria-label="Steady drift in nm per run"></label>
+      <input type="range" id="ds" min="0" max="0.1" step="0.01" value="0.04">
+      <label for="ws">Random steps σ_w (nm) <input type="number" id="wsN" min="0" max="0.3" step="0.01" value="0.05" aria-label="Random step size in nm"></label>
+      <input type="range" id="ws" min="0" max="0.3" step="0.01" value="0.05">
+      <label for="vs">Observation noise σ_v (nm) <input type="number" id="vsN" min="0.1" max="1" step="0.05" value="0.4" aria-label="Observation noise in nm"></label>
+      <input type="range" id="vs" min="0.1" max="1" step="0.05" value="0.4">
+      <h3 style="margin-top:12px">The estimators</h3>
+      <label for="lm2">EWMA λ <input type="number" id="lm2N" min="0.05" max="1" step="0.05" value="0.2" aria-label="EWMA weight lambda"></label>
+      <input type="range" id="lm2" min="0.05" max="1" step="0.05" value="0.2">
+      <label for="kq">Kalman Q (nm²)
+        <select id="kq" aria-label="Kalman process noise Q">
+          <option value="0.001">0.001</option><option value="0.003">0.003</option><option value="0.01" selected>0.01</option>
+          <option value="0.03">0.03</option><option value="0.1">0.1</option></select></label>
+      <label for="kr">Kalman R (nm²)
+        <select id="kr" aria-label="Kalman observation noise R">
+          <option value="0.04">0.04</option><option value="0.09">0.09</option><option value="0.16" selected>0.16</option>
+          <option value="0.36">0.36</option><option value="0.64">0.64</option></select></label>
+      <label class="chk"><input type="checkbox" id="gap2"> runs 30 to 32 have no measurement</label>
+      <div class="row"><button type="button" class="act" id="newNoise2">New noise</button></div>
+    </div>
+    <div class="box">
+      <h3>Estimates of d, and the Kalman gain</h3>
+      <svg class="plot" id="estSvg" viewBox="0 0 560 230" role="img" aria-label="True offset, observations, EWMA estimate and Kalman estimate against the run number"></svg>
+      <svg class="plot" id="gainSvg" viewBox="0 0 560 150" role="img" aria-label="Kalman gain run by run, compared with the EWMA weight"></svg>
+      <div class="stats" id="statsEst"></div>
+      <div class="note info" id="msgEst"></div>
+    </div>
+  </div>
+</section>
+
+<div class="credit">Module 5 explorer · Digital Twins for Semiconductor Manufacturing · SemiAcademy / ISEP-CSU · CC BY 4.0. Twin model: Deal-Grove (1965) with the example furnace's constants from the Module 5 lab (B = 177.21 nm²/min, B/A = 0.7329 nm/min, 1.5 nm native oxide). Estimators: EWMA run-to-run control (Sachs, Hu and Ingolfsson, 1995) and the Kalman filter (Kalman, 1960). Every value shown is simulated.</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  function sv(svg, tag, at, txt) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (txt !== undefined) e.textContent = txt; svg.appendChild(e); return e; }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function f(v, d) { var s = v.toFixed(d); return (s === '-' + (0).toFixed(d)) ? (0).toFixed(d) : s; }
+  function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function gauss(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function pair(range, num, cb) {
+    range.addEventListener('input', function () { num.value = range.value; cb(); });
+    num.addEventListener('change', function () {
+      var v = parseFloat(num.value), lo = parseFloat(range.min), hi = parseFloat(range.max), st = parseFloat(range.step);
+      if (isNaN(v)) v = parseFloat(range.value);
+      v = Math.min(hi, Math.max(lo, Math.round(v / st) * st)); v = Math.round(v * 100) / 100;
+      num.value = v; range.value = v; cb();
+    });
+  }
+  function frame(svg, W, H, L, R, T, B, xs, ys, xlab, ylab, yfmt) {
+    var X = function (v) { return L + (v - xs[0]) / (xs[1] - xs[0]) * (W - L - R); };
+    var Y = function (v) { return H - B - (v - ys[0]) / (ys[1] - ys[0]) * (H - T - B); };
+    return { X: X, Y: Y, draw: function (xt, yt) {
+      yt.forEach(function (v) {
+        sv(svg, 'line', { x1: L, y1: Y(v), x2: W - R, y2: Y(v), stroke: '#E4DCE0' });
+        sv(svg, 'text', { x: L - 6, y: Y(v) + 4, 'font-size': 11.5, fill: '#6A626B', 'text-anchor': 'end' }, yfmt ? yfmt(v) : String(v));
+      });
+      xt.forEach(function (v) { sv(svg, 'text', { x: X(v), y: H - B + 15, 'font-size': 11.5, fill: '#6A626B', 'text-anchor': 'middle' }, String(v)); });
+      sv(svg, 'line', { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: '#24313D', 'stroke-width': 1.5 });
+      if (xlab) sv(svg, 'text', { x: (L + W - R) / 2, y: H - 3, 'font-size': 12, fill: '#6A626B', 'text-anchor': 'middle' }, xlab);
+      sv(svg, 'text', { x: 12, y: (T + H - B) / 2, 'font-size': 12, fill: '#6A626B', 'text-anchor': 'middle', transform: 'rotate(-90 12 ' + ((T + H - B) / 2) + ')' }, ylab);
+    } };
+  }
+  function line(svg, xs, ys, X, Y, color, width, dash) {
+    var pts = [];
+    for (var i = 0; i < xs.length; i++) if (ys[i] !== null && !isNaN(ys[i])) pts.push(X(xs[i]).toFixed(1) + ',' + Y(ys[i]).toFixed(1));
+    sv(svg, 'polyline', { points: pts.join(' '), fill: 'none', stroke: color, 'stroke-width': width, 'stroke-dasharray': dash || '' });
+  }
+  function legend(svg, x, y, items) {
+    items.forEach(function (it, j) {
+      var yy = y + 15 * j;
+      if (it[0] === 'dot') sv(svg, 'circle', { cx: x + 9, cy: yy - 4, r: 3, fill: it[1] });
+      else sv(svg, 'line', { x1: x, y1: yy - 4, x2: x + 18, y2: yy - 4, stroke: it[1], 'stroke-width': 2.5, 'stroke-dasharray': it[0] === 'dash' ? '6 4' : '' });
+      sv(svg, 'text', { x: x + 25, y: yy, 'font-size': 11.5, fill: '#24313D' }, it[2]);
+    });
+  }
+
+  // ---------------------------------------------------------------- tabs
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs button'));
+  function openTab(t) {
+    tabs.forEach(function (b) { b.classList.toggle('on', b.dataset.t === t); });
+    document.querySelectorAll('.tool').forEach(function (s) { s.classList.toggle('on', s.id === 't-' + t); });
+  }
+  tabs.forEach(function (b) { b.onclick = function () { openTab(b.dataset.t); }; });
+  function fromHash() { openTab(location.hash.indexOf('estimate') >= 0 ? 'estimate' : 'loop'); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // ---------------------------------------------------------------- the twin (example furnace of the lab)
+  var B = 177.21, BA = 0.7329, XI = 1.5, A = B / BA, TARGET = 61.2, SENS = 0.52, LO = 80, HI = 100, N = 60;
+  function dg(t) { var tau = (XI * XI + A * XI) / B; return (-A + Math.sqrt(A * A + 4 * B * (t + tau))) / 2; }
+  var D_REF = TARGET - dg(90);       // the offset with no bias: 90 minutes reach the target
+  function nextTime(dHat) { var x = TARGET - dHat, t = (x * x - XI * XI + A * (x - XI)) / B; return Math.min(HI, Math.max(LO, t)); }
+
+  // ---------------------------------------------------------------- tool 1: the closed loop
+  var seed1 = 5;
+  function run1() {
+    var rate = parseFloat($('dr').value), sig = parseFloat($('nz').value), lam = parseFloat($('lm').value), gap = $('gap1').checked;
+    var r = rng(seed1 * 7919 + 13), runN = [], monN = [];
+    for (var k = 0; k <= N; k++) { runN.push(gauss(r)); monN.push(gauss(r)); }
+    function sim(control) {
+      var dHat = D_REF, out = { t: [], x: [], held: 0 };
+      for (var k = 1; k <= N; k++) {
+        var t = control ? nextTime(dHat) : 90;
+        var dTrue = D_REF - SENS * rate * k;
+        var x = dg(t) + dTrue + 0.6 * sig * runN[k];
+        var y = x + 0.8 * sig * monN[k];
+        if (t <= LO || t >= HI) out.held += 1;
+        if (control && !(gap && k === 39)) dHat = lam * (y - dg(t)) + (1 - lam) * dHat;
+        out.t.push(t); out.x.push(x);
+      }
+      var s = 0, m = 0;
+      out.x.forEach(function (v) { s += Math.abs(v - TARGET); m = Math.max(m, Math.abs(v - TARGET)); });
+      out.mae = s / N; out.max = m;
+      return out;
+    }
+    return { fix: sim(false), ewma: sim(true), rate: rate, sig: sig, lam: lam };
+  }
+  function draw1() {
+    var res = run1(), runs = [], showFix = $('showFix').checked;
+    for (var k = 1; k <= N; k++) runs.push(k);
+    var all = res.ewma.x.concat(showFix ? res.fix.x : []).concat([TARGET]);
+    var lo = Math.floor(Math.min.apply(null, all) - 0.3), hi = Math.ceil(Math.max.apply(null, all) + 0.3);
+    if (hi - lo < 4) { lo = Math.floor(TARGET - 2); hi = lo + 4; }
+    var svg = $('thkSvg'); clear(svg);
+    var step = (hi - lo) > 10 ? 4 : ((hi - lo) > 5 ? 2 : 1), yt = [];
+    for (var v = Math.ceil(lo / step) * step; v <= hi; v += step) yt.push(v);
+    var fr = frame(svg, 560, 205, 46, 10, 8, 34, [0, 60], [lo, hi], 'run', 'achieved (nm)');
+    fr.draw([0, 10, 20, 30, 40, 50, 60], yt);
+    line(svg, [0, 60], [TARGET, TARGET], fr.X, fr.Y, '#24313D', 1.5, '5 4');
+    if (showFix) line(svg, runs, res.fix.x, fr.X, fr.Y, '#6A626B', 2);
+    line(svg, runs, res.ewma.x, fr.X, fr.Y, '#99004C', 2.2);
+    var items = [['line', '#99004C', 'EWMA controller']];
+    if (showFix) items.push(['line', '#6A626B', 'fixed 90 min']);
+    items.push(['dash', '#24313D', 'target 61.2 nm']);
+    legend(svg, 60, 205 - 34 - 6 - 15 * (items.length - 1), items);
+    // times
+    var s2 = $('timSvg'); clear(s2);
+    var fr2 = frame(s2, 560, 135, 46, 10, 8, 34, [0, 60], [78, 102], 'run', 'time (min)');
+    fr2.draw([0, 10, 20, 30, 40, 50, 60], [80, 90, 100]);
+    line(s2, [0, 60], [LO, LO], fr2.X, fr2.Y, '#B3261E', 1.4, '4 4');
+    line(s2, [0, 60], [HI, HI], fr2.X, fr2.Y, '#B3261E', 1.4, '4 4');
+    if (showFix) line(s2, runs, res.fix.t, fr2.X, fr2.Y, '#6A626B', 2);
+    line(s2, runs, res.ewma.t, fr2.X, fr2.Y, '#99004C', 2.2);
+    sv(s2, 'text', { x: 52, y: fr2.Y(HI) - 4, 'font-size': 11, fill: '#B3261E' }, 'recipe limits');
+    $('statsLoop').innerHTML = '<table><tr><th>controller</th><th>mean abs. error</th><th>largest deviation</th><th>held runs</th></tr>' +
+      '<tr><td>EWMA (λ ' + f(res.lam, 2) + ')</td><td>' + f(res.ewma.mae, 2) + ' nm</td><td>' + f(res.ewma.max, 2) + ' nm</td><td>' + res.ewma.held + '</td></tr>' +
+      '<tr><td>fixed 90 min</td><td>' + f(res.fix.mae, 2) + ' nm</td><td>' + f(res.fix.max, 2) + ' nm</td><td>' + res.fix.held + '</td></tr></table>';
+    var msg = $('msgLoop'), cls = 'note info', txt;
+    if (res.ewma.held > 0) { cls = 'note bad'; txt = 'The oxidation time reached its limit in ' + res.ewma.held + ' runs: the recipe cannot add more time, so the thickness falls below target. The drift is beyond what control can absorb: stop and call maintenance.'; }
+    else if (res.rate === 0) { txt = 'With no drift there is nothing to correct: the controller can only react to noise, so it makes the thickness vary a little more than the fixed recipe, and more as λ grows. Run-to-run control pays off when the process drifts.'; }
+    else if (res.lam >= 0.8) { cls = 'note warn'; txt = 'With λ near 1 the controller trusts only the last run, so each run’s noise goes straight into the next recipe. Try a smaller λ.'; }
+    else if (res.lam <= 0.1 && res.rate >= 0.05) { cls = 'note warn'; txt = 'With a small λ the estimate averages over many runs and trails the drift: the thickness sits below target. Try a larger λ.'; }
+    else { cls = 'note'; txt = 'The controller lengthens the oxidation time as the furnace cools and holds the thickness near target; what is left is mostly each run’s own noise. The thickness chart looks healthy even though the thermocouple keeps drifting: watch d̂ to see it.'; }
+    msg.className = cls; msg.textContent = txt;
+  }
+  pair($('dr'), $('drN'), draw1); pair($('nz'), $('nzN'), draw1); pair($('lm'), $('lmN'), draw1);
+  $('gap1').onchange = draw1; $('showFix').onchange = draw1;
+  $('newNoise1').onclick = function () { seed1 += 1; draw1(); };
+  draw1();
+
+  // ---------------------------------------------------------------- tool 2: the estimators
+  var seed2 = 3;
+  function draw2() {
+    var drift = parseFloat($('ds').value), ws = parseFloat($('ws').value), vs = parseFloat($('vs').value), lam = parseFloat($('lm2').value);
+    var Q = parseFloat($('kq').value), R = parseFloat($('kr').value), gap = $('gap2').checked;
+    var r = rng(seed2 * 104729 + 7), d = [], y = [], runs = [];
+    var cur = 0;
+    for (var k = 1; k <= N; k++) {
+      cur = cur - drift + ws * gauss(r);
+      d.push(cur); runs.push(k);
+      var obs = cur + vs * gauss(r);
+      y.push(gap && k >= 30 && k <= 32 ? null : obs);
+    }
+    var e = 0, kd = 0, P = R, eh = [], kh = [], gains = [], se1 = 0, se2 = 0;
+    for (k = 0; k < N; k++) {
+      var Pm = P + Q;
+      if (y[k] === null) { P = Pm; gains.push(null); }
+      else {
+        var K = Pm / (Pm + R);
+        kd = kd + K * (y[k] - kd); P = (1 - K) * Pm; gains.push(K);
+        e = lam * y[k] + (1 - lam) * e;
+      }
+      eh.push(e); kh.push(kd);
+      se1 += (e - d[k]) * (e - d[k]); se2 += (kd - d[k]) * (kd - d[k]);
+    }
+    var all = d.concat(y.filter(function (v) { return v !== null; }));
+    var lo = Math.floor(Math.min.apply(null, all) - 0.2), hi = Math.ceil(Math.max.apply(null, all) + 0.2);
+    var svg = $('estSvg'); clear(svg);
+    var step = (hi - lo) > 6 ? 2 : ((hi - lo) > 3 ? 1 : 0.5), yt = [];
+    for (var v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) yt.push(Math.round(v * 10) / 10);
+    var fr = frame(svg, 560, 230, 46, 10, 8, 34, [0, 60], [lo, hi], 'run', 'offset change (nm)');
+    fr.draw([0, 10, 20, 30, 40, 50, 60], yt);
+    for (k = 0; k < N; k++) if (y[k] !== null) sv(svg, 'circle', { cx: fr.X(runs[k]), cy: fr.Y(y[k]), r: 2.6, fill: '#A9A2AA' });
+    line(svg, runs, d, fr.X, fr.Y, '#24313D', 1.6, '5 4');
+    line(svg, runs, eh, fr.X, fr.Y, '#99004C', 2.2);
+    line(svg, runs, kh, fr.X, fr.Y, '#2F5E8E', 2.2);
+    legend(svg, 360, 22, [['dot', '#A9A2AA', 'observations'], ['dash', '#24313D', 'true offset (simulation only)'], ['line', '#99004C', 'EWMA estimate'], ['line', '#2F5E8E', 'Kalman estimate']]);
+    // gain
+    var s2 = $('gainSvg'); clear(s2);
+    var fr2 = frame(s2, 560, 150, 46, 10, 8, 34, [0, 60], [0, 0.6], 'run', 'weight', function (v) { return v.toFixed(1); });
+    fr2.draw([0, 10, 20, 30, 40, 50, 60], [0, 0.2, 0.4, 0.6]);
+    line(s2, [0, 60], [Math.min(lam, 0.6), Math.min(lam, 0.6)], fr2.X, fr2.Y, '#99004C', 1.8, '6 4');
+    for (k = 0; k < N; k++) if (gains[k] !== null) sv(s2, 'circle', { cx: fr2.X(runs[k]), cy: fr2.Y(Math.min(gains[k], 0.6)), r: 2.6, fill: '#2F5E8E' });
+    legend(s2, 330, 22, [['line', '#2F5E8E', 'Kalman gain K, run by run'], ['dash', '#99004C', 'EWMA weight λ' + (lam > 0.6 ? ' (above the axis)' : '')]]);
+    var Ps = (Q + Math.sqrt(Q * Q + 4 * Q * R)) / 2, Ks = Ps / (Ps + R);
+    var rm1 = Math.sqrt(se1 / N), rm2 = Math.sqrt(se2 / N);
+    $('statsEst').innerHTML = 'Error of the estimates against the true offset (RMSE over 60 runs): EWMA <span class="mono">' + f(rm1, 3) + '</span> nm, Kalman <span class="mono">' + f(rm2, 3) +
+      '</span> nm.<br>Steady Kalman gain from Q and R: <span class="mono">' + f(Ks, 3) + '</span>; the EWMA weight is λ = <span class="mono">' + f(lam, 2) + '</span>.';
+    var msg = $('msgEst'), cls = 'note info', txt;
+    var trueR = vs * vs;
+    if (Math.abs(Ks - lam) < 0.03) { cls = 'note'; txt = 'λ is close to the steady Kalman gain: after the first runs the two estimates nearly coincide. That is Muth’s result: for a random walk seen through noise, the Kalman filter settles into an EWMA.'; }
+    else if (R < 0.5 * trueR || R > 2 * trueR) { cls = 'note warn'; txt = 'The filter’s R (' + f(R, 2) + ' nm²) is far from the true observation variance (' + f(trueR, 2) + ' nm²). A Kalman filter is only as good as the variances it is given: ' + (R < trueR ? 'with R too small it trusts noisy data too much.' : 'with R too large it ignores good data.'); }
+    else if (gap) { txt = 'Look at runs 30 to 32: with no measurement both estimates stay put, while the Kalman filter’s uncertainty grows, so the first measurement after the gap gets a larger gain.'; }
+    else { txt = 'The Kalman gain starts large, because after one run the estimate is uncertain, and settles at ' + f(Ks, 2) + '. The EWMA keeps λ = ' + f(lam, 2) + ' all along. Set λ to the steady gain and compare.'; }
+    msg.className = cls; msg.textContent = txt;
+  }
+  pair($('ds'), $('dsN'), draw2); pair($('ws'), $('wsN'), draw2); pair($('vs'), $('vsN'), draw2); pair($('lm2'), $('lm2N'), draw2);
+  $('kq').onchange = draw2; $('kr').onchange = draw2; $('gap2').onchange = draw2;
+  $('newNoise2').onclick = function () { seed2 += 1; draw2(); };
+  draw2();
+})();
+</script>
+</body>
+</html>
