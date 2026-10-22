@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module 6 Explorer: Queues and Maintenance</title>
+<style>
+  :root { --maroon:#99004C; --ink:#24313D; --muted:#6A626B; --line:#E4DCE0; --tint:#F8F4F6; --ok:#2E7D4F; --bad:#B3261E; --blue:#2F5E8E; --gold:#A06A00; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:"Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:15px; }
+  .tabs { display:flex; border-bottom:2px solid var(--line); background:var(--tint); }
+  .tabs button { flex:1; border:0; background:none; padding:10px 8px; font-size:15px; cursor:pointer; color:var(--muted); border-bottom:3px solid transparent; }
+  .tabs button.on { color:var(--maroon); border-bottom-color:var(--maroon); font-weight:600; background:#fff; }
+  .tool { display:none; padding:12px 16px; }
+  .tool.on { display:block; }
+  h2 { font-family:Georgia, serif; color:var(--maroon); font-size:19px; margin:0 0 4px; }
+  .hint { color:var(--muted); margin:0 0 10px; line-height:1.45; }
+  .grid { display:grid; grid-template-columns: 270px 1fr; gap:14px; align-items:start; }
+  @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+  .box { border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-width:0; }
+  .box h3 { margin:0 0 6px; font-size:14.5px; color:var(--maroon); }
+  label { display:flex; justify-content:space-between; align-items:center; margin:8px 0 2px; font-size:14px; gap:8px; }
+  label input[type=number] { width:70px; font-size:14px; padding:2px 4px; border:1px solid var(--line); border-radius:4px; text-align:right; }
+  input[type=range] { width:100%; }
+  select { font-size:14px; padding:2px 4px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  button.act { border:2px solid var(--ink); background:#fff; color:var(--ink); padding:5px 11px; border-radius:5px; font-size:14px; cursor:pointer; }
+  .chk { display:flex; align-items:center; gap:6px; font-size:14px; margin-top:8px; justify-content:flex-start; }
+  svg.plot { width:100%; height:auto; display:block; }
+  .stats { font-size:14px; line-height:1.5; margin-top:4px; }
+  .stats table { border-collapse:collapse; width:100%; font-size:13px; }
+  .stats th, .stats td { border:1px solid var(--line); padding:2px 5px; text-align:right; }
+  .stats th:first-child, .stats td:first-child { text-align:left; }
+  .stats th { background:var(--tint); font-weight:600; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .note { margin-top:6px; padding:6px 10px; border-radius:4px; font-size:13.5px; background:#EEF6F0; color:var(--ok); line-height:1.4; }
+  .note.warn { background:#FFF7E0; color:#7A5C00; }
+  .note.info { background:var(--tint); color:var(--ink); }
+  .note.bad { background:#FBEAEA; color:var(--bad); }
+  .small { font-size:12.5px; color:var(--muted); margin:6px 0 0; line-height:1.4; }
+  .credit { color:var(--muted); font-size:12px; padding:8px 16px 12px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="tabs" role="tablist">
+  <button type="button" data-t="line" role="tab">1. Queues and Little's law</button>
+  <button type="button" data-t="maint" role="tab">2. Preventive or predictive?</button>
+</div>
+
+<!-- TOOL 1: the line -->
+<section class="tool" id="t-line" role="tabpanel">
+  <h2>Where lots wait, and what a change does to the line</h2>
+  <p class="hint">The lab's line: furnace, lithography, etch. Top: one replication. Bottom: the mean cycle time over 10 replications at each load, against the lab's line. The table checks Little's law at each boundary.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Load and tools</h3>
+      <label for="lam">Lots released per hour <input type="number" id="lamN" min="0.4" max="1.05" step="0.05" value="0.85" aria-label="Lots released per hour"></label>
+      <input type="range" id="lam" min="0.4" max="1.05" step="0.05" value="0.85">
+      <label for="nf">Furnace tubes (1.8 h per lot)
+        <select id="nf" aria-label="Number of furnace tubes"><option>1</option><option selected>2</option><option>3</option></select></label>
+      <label for="nl">Lithography tools (1.0 h)
+        <select id="nl" aria-label="Number of lithography tools"><option selected>1</option><option>2</option><option>3</option></select></label>
+      <label for="ne">Etch chambers (1.2 h)
+        <select id="ne" aria-label="Number of etch chambers"><option>1</option><option selected>2</option><option>3</option></select></label>
+      <label class="chk"><input type="checkbox" id="fastL"> lithography time 10 % shorter</label>
+      <label class="chk"><input type="checkbox" id="fastE"> etch time 10 % shorter</label>
+      <label class="chk"><input type="checkbox" id="showLab" checked> show the lab's line</label>
+      <div class="row"><button type="button" class="act" id="newRand">New random numbers</button></div>
+      <p class="small">Each replication runs 600 hours from an empty line; the first 100 hours are the warm-up and are left out. Replications share their random numbers whatever the settings, so comparisons are paired. This page uses its own random numbers: its values differ a little from the lab's, and the shapes agree.</p>
+    </div>
+    <div class="box">
+      <h3>One replication, and the mean cycle time at every load</h3>
+      <svg class="plot" id="wipSvg" viewBox="0 0 560 150" role="img" aria-label="Number of lots in the line over 600 hours for the first replication, with the warm-up shaded"></svg>
+      <svg class="plot" id="swSvg" viewBox="0 0 560 150" role="img" aria-label="Mean cycle time against lots released per hour, for the chosen line and the lab's line, with 95 percent interval at the chosen load"></svg>
+      <div class="stats" id="statsLine"></div>
+      <div class="note info" id="msgLine"></div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOL 2: maintenance -->
+<section class="tool" id="t-maint" role="tabpanel">
+  <h2>Calibrate on a calendar, or when the drift estimate says so</h2>
+  <p class="hint">One furnace tube runs 170 times. Its thermocouple bias grows with every run; blue is the thickness drift it causes, maroon the Module 5 Kalman estimate of it. Beyond 5 nm the controller can no longer correct and lots are off target. Both rules see the same tube and noise; a calibration takes the tube out for 8 hours.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>The tube and the rules</h3>
+      <label for="fa">Thermocouple starts to fail at run
+        <select id="fa" aria-label="Run at which the thermocouple starts to fail">
+          <option value="0">never</option><option value="60">60</option><option value="80">80</option><option value="100">100</option>
+          <option value="112" selected>112</option><option value="130">130</option><option value="150">150</option></select></label>
+      <label for="iv">Preventive: every (runs) <input type="number" id="ivN" min="20" max="120" step="10" value="50" aria-label="Preventive interval in runs"></label>
+      <input type="range" id="iv" min="20" max="120" step="10" value="50">
+      <label for="lm">Predictive: alarm at (nm) <input type="number" id="lmN" min="1" max="4" step="0.5" value="2" aria-label="Alarm limit in nanometers"></label>
+      <input type="range" id="lm" min="1" max="4" step="0.5" value="2">
+      <label for="kk">Predictive: for this many runs in a row <input type="number" id="kkN" min="1" max="5" step="1" value="3" aria-label="Runs in a row beyond the limit"></label>
+      <input type="range" id="kk" min="1" max="5" step="1" value="3">
+      <div class="row"><button type="button" class="act" id="newTube">New noise</button><button type="button" class="act" id="mc">100 random tubes</button></div>
+      <p class="small">Simplified from the lab's line model: bias growth 0.06 to 0.09 °C per run, 0.52 nm per °C, a failing thermocouple adds 0.35 °C per run, a calibration resets the tube.</p>
+    </div>
+    <div class="box">
+      <h3>True drift and its estimate, under each rule</h3>
+      <svg class="plot" id="tubeSvg" viewBox="0 0 560 318" role="img" aria-label="Drift of one furnace tube under a preventive and a predictive calibration rule"></svg>
+      <div class="stats" id="statsTube"></div>
+      <div class="note info" id="msgTube"></div>
+    </div>
+  </div>
+</section>
+
+<div class="credit">Module 6 explorer · Digital Twins for Semiconductor Manufacturing · SemiAcademy / ISEP-CSU · CC BY 4.0. Discrete-event model of a three-stage line with first-in-first-out queues (Little, 1961; Hopp and Spearman, 2011); drift and estimate from the Module 5 lab's Kalman filter (Kalman, 1960). Every value shown is simulated.</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  function sv(svg, tag, at, txt) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (txt !== undefined) e.textContent = txt; svg.appendChild(e); return e; }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function f(v, d) { var s = v.toFixed(d); return (s === '-' + (0).toFixed(d)) ? (0).toFixed(d) : s; }
+  function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function gauss(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function expo(r) { return -Math.log(1 - r()); }
+  function gammaMT(r, a) {                         // Marsaglia and Tsang, shape a >= 1
+    var d = a - 1 / 3, c = 1 / Math.sqrt(9 * d), x, v, u;
+    for (;;) {
+      do { x = gauss(r); v = 1 + c * x; } while (v <= 0);
+      v = v * v * v; u = r();
+      if (u < 1 - 0.0331 * x * x * x * x) return d * v;
+      if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+    }
+  }
+  function pair(range, num, cb) {
+    range.addEventListener('input', function () { num.value = range.value; cb(); });
+    num.addEventListener('change', function () {
+      var v = parseFloat(num.value), lo = parseFloat(range.min), hi = parseFloat(range.max), st = parseFloat(range.step);
+      if (isNaN(v)) v = parseFloat(range.value);
+      v = Math.min(hi, Math.max(lo, Math.round(v / st) * st)); v = Math.round(v * 100) / 100;
+      num.value = v; range.value = v; cb();
+    });
+  }
+  function frame(svg, W, H, L, R, T, B, xs, ys, xlab, ylab, yfmt) {
+    var X = function (v) { return L + (v - xs[0]) / (xs[1] - xs[0]) * (W - L - R); };
+    var Y = function (v) { return H - B - (v - ys[0]) / (ys[1] - ys[0]) * (H - T - B); };
+    return { X: X, Y: Y, draw: function (xt, yt, xfmt) {
+      yt.forEach(function (v) {
+        sv(svg, 'line', { x1: L, y1: Y(v), x2: W - R, y2: Y(v), stroke: '#E4DCE0' });
+        sv(svg, 'text', { x: L - 6, y: Y(v) + 4, 'font-size': 11.5, fill: '#6A626B', 'text-anchor': 'end' }, yfmt ? yfmt(v) : String(v));
+      });
+      xt.forEach(function (v) { sv(svg, 'text', { x: X(v), y: H - B + 15, 'font-size': 11.5, fill: '#6A626B', 'text-anchor': 'middle' }, xfmt ? xfmt(v) : String(v)); });
+      sv(svg, 'line', { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: '#24313D', 'stroke-width': 1.5 });
+      if (xlab) sv(svg, 'text', { x: (L + W - R) / 2, y: H - 3, 'font-size': 12, fill: '#6A626B', 'text-anchor': 'middle' }, xlab);
+      sv(svg, 'text', { x: 12, y: (T + H - B) / 2, 'font-size': 12, fill: '#6A626B', 'text-anchor': 'middle', transform: 'rotate(-90 12 ' + ((T + H - B) / 2) + ')' }, ylab);
+    } };
+  }
+  function line(svg, xs, ys, X, Y, color, width, dash, cap) {
+    var pts = [];
+    for (var i = 0; i < xs.length; i++) if (ys[i] !== null && !isNaN(ys[i])) pts.push(X(xs[i]).toFixed(1) + ',' + Y(cap !== undefined ? Math.min(ys[i], cap) : ys[i]).toFixed(1));
+    sv(svg, 'polyline', { points: pts.join(' '), fill: 'none', stroke: color, 'stroke-width': width, 'stroke-dasharray': dash || '', 'stroke-linejoin': 'round' });
+  }
+  function legend(svg, x, y, items) {
+    items.forEach(function (it, j) {
+      var yy = y + 15 * j;
+      if (it[0] === 'dot') sv(svg, 'circle', { cx: x + 9, cy: yy - 4, r: 3, fill: it[1] });
+      else sv(svg, 'line', { x1: x, y1: yy - 4, x2: x + 18, y2: yy - 4, stroke: it[1], 'stroke-width': 2.5, 'stroke-dasharray': it[0] === 'dash' ? '6 4' : '' });
+      sv(svg, 'text', { x: x + 25, y: yy, 'font-size': 11.5, fill: '#24313D' }, it[2]);
+    });
+  }
+  var TQ = { 1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228 };
+  function tcrit(df) { return df > 10 ? (df >= 99 ? 1.984 : 2.0) : TQ[df]; }
+  function meanSd(a) { var m = 0, i; for (i = 0; i < a.length; i++) m += a[i]; m /= a.length; var s = 0; for (i = 0; i < a.length; i++) s += (a[i] - m) * (a[i] - m); return [m, a.length > 1 ? Math.sqrt(s / (a.length - 1)) : 0]; }
+  function half(a) { var ms = meanSd(a); return tcrit(a.length - 1) * ms[1] / Math.sqrt(a.length); }
+
+  // ---------------------------------------------------------------- tabs
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs button'));
+  function openTab(t) {
+    tabs.forEach(function (b) { b.classList.toggle('on', b.dataset.t === t); });
+    document.querySelectorAll('.tool').forEach(function (s) { s.classList.toggle('on', s.id === 't-' + t); });
+  }
+  tabs.forEach(function (b) { b.onclick = function () { openTab(b.dataset.t); }; });
+  function fromHash() { openTab(location.hash.indexOf('maint') >= 0 ? 'maint' : 'line'); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+
+  // ================================================================ tool 1: the line (a tandem of FIFO queues)
+  var HOURS = 600, WARM = 100, NREP = 10, NMAX = 800;
+  var CV = { f: 0.30, l: 0.50, e: 0.40 };
+  var LAB = { lam: 0.85, nf: 2, nl: 1, ne: 2, tf: 1.8, tl: 1.0, te: 1.2 };
+  var base = 1, cache = {};
+  function streams(seed) {                          // the same draws for every setting: common random numbers
+    if (cache[seed]) return cache[seed];
+    var r = rng(seed * 2654435761 + 17), S = { E: [], F: [], L: [], T: [] }, i;
+    var kf = 1 / (CV.f * CV.f), kl = 1 / (CV.l * CV.l), ke = 1 / (CV.e * CV.e);
+    for (i = 0; i < NMAX; i++) {
+      S.E.push(expo(r)); S.F.push(gammaMT(r, kf) / kf); S.L.push(gammaMT(r, kl) / kl); S.T.push(gammaMT(r, ke) / ke);
+    }
+    cache[seed] = S; return S;
+  }
+  // arr: release times; svc: {f, l, e} process times per lot; c: the tool counts. Every group serves its queue first in first out.
+  function tandem(arr, svc, c) {
+    var n = arr.length, ready = arr.slice(), res = { tin: arr, g: {} }, names = ['f', 'l', 'e'], ks = [c.nf, c.nl, c.ne], s, i, k;
+    for (s = 0; s < 3; s++) {
+      var order = []; for (i = 0; i < n; i++) order.push(i);
+      order.sort(function (a, b) { return (ready[a] - ready[b]) || (a - b); });
+      var free = []; for (k = 0; k < ks[s]; k++) free.push(0);
+      var st = new Array(n), en = new Array(n);
+      for (var q = 0; q < n; q++) {
+        i = order[q];
+        var m = 0; for (k = 1; k < free.length; k++) if (free[k] < free[m]) m = k;
+        var t0 = ready[i] > free[m] ? ready[i] : free[m];
+        st[i] = t0; en[i] = t0 + svc[names[s]][i]; free[m] = en[i];
+      }
+      res.g[names[s]] = { ready: ready, start: st, end: en, tools: ks[s] };
+      ready = en;
+    }
+    res.tout = ready; return res;
+  }
+  function simLine(c, S) {
+    var arr = [], t = 0, i, svc = { f: [], l: [], e: [] };
+    for (i = 0; i < S.E.length; i++) { t += S.E[i] / c.lam; if (t >= HOURS) break; arr.push(t); }
+    for (i = 0; i < arr.length; i++) { svc.f.push(S.F[i] * c.tf); svc.l.push(S.L[i] * c.tl); svc.e.push(S.T[i] * c.te); }
+    return tandem(arr, svc, c);
+  }
+  function ov(s, e, a, b) { var lo = s > a ? s : a, hi = e < b ? e : b; return hi > lo ? hi - lo : 0; }
+  function measure(res, a, b) {
+    var n = res.tin.length, W = b - a, i, out = { ex: 0, ct: 0, lotH: 0, g: {} };
+    for (i = 0; i < n; i++) {
+      var to = res.tout[i];
+      if (to >= a && to < b) { out.ex += 1; out.ct += to - res.tin[i]; }
+      out.lotH += ov(res.tin[i], to, a, b);
+    }
+    out.thr = out.ex / W; out.ctm = out.ex ? out.ct / out.ex : NaN; out.wip = out.lotH / W;
+    ['f', 'l', 'e'].forEach(function (s) {
+      var g = res.g[s], busy = 0, waitH = 0, inH = 0, left = 0, inT = 0, waited = 0, started = 0;
+      for (i = 0; i < n; i++) {
+        busy += ov(g.start[i], g.end[i], a, b); waitH += ov(g.ready[i], g.start[i], a, b); inH += ov(g.ready[i], g.end[i], a, b);
+        if (g.end[i] >= a && g.end[i] < b) { left += 1; inT += g.end[i] - g.ready[i]; }
+        if (g.start[i] >= a && g.start[i] < b) { started += 1; waited += g.start[i] - g.ready[i]; }
+      }
+      out.g[s] = { util: busy / (g.tools * W), qLots: waitH / W, qH: started ? waited / started : NaN, lots: inH / W, h: left ? inT / left : NaN, rate: left / W };
+    });
+    return out;
+  }
+  function cfgOf() {
+    var fl = $('fastL').checked, fe = $('fastE').checked;
+    return { lam: parseFloat($('lam').value), nf: +$('nf').value, nl: +$('nl').value, ne: +$('ne').value, tf: 1.8, tl: fl ? 0.9 : 1.0, te: fe ? 1.08 : 1.2 };
+  }
+  function runReps(c, lamOverride) {
+    var cc = {}, k; for (k in c) cc[k] = c[k]; if (lamOverride) cc.lam = lamOverride;
+    var out = [], res1 = null;
+    for (var r = 0; r < NREP; r++) {
+      var res = simLine(cc, streams(base * 100 + r + 1)); if (r === 0) res1 = res;
+      out.push(measure(res, WARM, HOURS));
+    }
+    return { m: out, res1: res1 };
+  }
+  function avgG(ms, s, key) { var t = 0; ms.forEach(function (m) { t += m.g[s][key]; }); return t / ms.length; }
+  function stepPoints(res) {
+    var ev = [], i; for (i = 0; i < res.tin.length; i++) { ev.push([res.tin[i], 1]); if (res.tout[i] <= HOURS) ev.push([res.tout[i], -1]); }
+    ev.sort(function (a, b) { return a[0] - b[0]; });
+    var xs = [0], ys = [0], n = 0;
+    ev.forEach(function (e) { xs.push(e[0]); ys.push(n); n += e[1]; xs.push(e[0]); ys.push(n); });
+    xs.push(HOURS); ys.push(n); return [xs, ys];
+  }
+  var SW_L = []; for (var q = 0; q <= 12; q++) SW_L.push(Math.round((0.4 + 0.05 * q) * 100) / 100);
+  var labSweep = null;
+  function sweep(c) {
+    return SW_L.map(function (lam) {
+      var o = runReps(c, lam).m.map(function (m) { return m.ctm; });
+      return meanSd(o)[0];
+    });
+  }
+  function drawLine() {
+    var c = cfgOf(), cur = runReps(c), labC = {}, k; for (k in LAB) labC[k] = LAB[k]; labC.lam = c.lam;
+    var lab = runReps(labC);
+    var cts = cur.m.map(function (m) { return m.ctm; }), thr = cur.m.map(function (m) { return m.thr; }), wip = cur.m.map(function (m) { return m.wip; });
+    var ctMean = meanSd(cts)[0], ctHalf = half(cts);
+    // chart 1: one replication
+    var xy = stepPoints(cur.res1), svg = $('wipSvg'); clear(svg);
+    var ymax = 4, i; for (i = 0; i < xy[1].length; i++) if (xy[1][i] > ymax) ymax = xy[1][i];
+    var step = ymax > 100 ? 40 : (ymax > 60 ? 20 : (ymax > 30 ? 10 : (ymax > 12 ? 8 : 4)));
+    ymax = Math.ceil(ymax * 1.05 / step) * step;
+    var yt = []; for (var v = 0; v <= ymax; v += step) yt.push(v);
+    var fr = frame(svg, 560, 150, 46, 10, 8, 32, [0, HOURS], [0, ymax], 'time (h)', 'lots in the line');
+    fr.draw([0, 100, 200, 300, 400, 500, 600], yt);
+    sv(svg, 'rect', { x: fr.X(0), y: fr.Y(ymax), width: fr.X(WARM) - fr.X(0), height: fr.Y(0) - fr.Y(ymax), fill: '#000', opacity: 0.07 });
+    sv(svg, 'text', { x: fr.X(WARM / 2), y: fr.Y(ymax) + 14, 'font-size': 11.5, fill: '#6A626B', 'text-anchor': 'middle' }, 'warm-up');
+    line(svg, xy[0], xy[1], fr.X, fr.Y, '#99004C', 1.3);
+    var w1 = cur.m[0].wip;
+    line(svg, [WARM, HOURS], [w1, w1], fr.X, fr.Y, '#24313D', 1.8, '6 4');
+    sv(svg, 'rect', { x: 440, y: 10, width: 112, height: 17, rx: 3, fill: '#fff', opacity: 0.9 });
+    sv(svg, 'text', { x: 548, y: 23, 'font-size': 12, fill: '#24313D', 'text-anchor': 'end', 'font-weight': 600 }, 'average ' + f(w1, 1) + ' lots');
+    // chart 2: mean cycle time against load
+    var s2 = $('swSvg'); clear(s2);
+    var YM = 24, fr2 = frame(s2, 560, 150, 46, 10, 8, 32, [0.4, 1.05], [0, YM], 'lots released per hour', 'mean cycle time (h)');
+    fr2.draw([0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], [0, 6, 12, 18, 24], function (v) { return v.toFixed(1); });
+    if (!labSweep) labSweep = sweep(LAB);
+    var showLab = $('showLab').checked;
+    if (showLab) line(s2, SW_L, labSweep, fr2.X, fr2.Y, '#6A626B', 2, '6 4', YM);
+    var curSweep = sweep(c);
+    line(s2, SW_L, curSweep, fr2.X, fr2.Y, '#99004C', 2.4, '', YM);
+    var capMin = Math.min(c.nf / c.tf, c.nl / c.tl, c.ne / c.te);
+    if (capMin < 1.05) { sv(s2, 'line', { x1: fr2.X(capMin), y1: fr2.Y(0), x2: fr2.X(capMin), y2: fr2.Y(YM), stroke: '#B3261E', 'stroke-width': 1.3, 'stroke-dasharray': '3 3' }); sv(s2, 'text', { x: fr2.X(capMin) - 4, y: fr2.Y(6), 'font-size': 11, fill: '#B3261E', 'text-anchor': 'end' }, 'capacity ' + f(capMin, 2)); }
+    var yc = Math.min(ctMean, YM);
+    sv(s2, 'line', { x1: fr2.X(c.lam), y1: fr2.Y(Math.max(0, Math.min(ctMean - ctHalf, YM))), x2: fr2.X(c.lam), y2: fr2.Y(Math.min(ctMean + ctHalf, YM)), stroke: '#24313D', 'stroke-width': 2 });
+    sv(s2, 'circle', { cx: fr2.X(c.lam), cy: fr2.Y(yc), r: 4.5, fill: '#24313D' });
+    var items = [['line', '#99004C', 'this line']]; if (showLab) items.push(['dash', '#6A626B', "the lab's line"]); items.push(['dot', '#24313D', 'chosen load, 95 % interval']);
+    legend(s2, 62, 20, items);
+    // table
+    var names = [['f', 'furnace'], ['l', 'lithography'], ['e', 'etch']], html = '<table><tr><th>boundary</th><th>utilization</th><th>lots waiting</th><th>wait (h)</th><th>L (lots)</th><th>W (h)</th><th>L / (λW)</th></tr>', maxU = 0, maxName = '';
+    names.forEach(function (nm) {
+      var s = nm[0], u = avgG(cur.m, s, 'util'), ratios = cur.m.map(function (m) { return m.g[s].lots / (m.g[s].rate * m.g[s].h); });
+      if (u > maxU) { maxU = u; maxName = nm[1]; }
+      html += '<tr><td>' + nm[1] + '</td><td>' + f(u, 2) + '</td><td>' + f(avgG(cur.m, s, 'qLots'), 1) + '</td><td>' + f(avgG(cur.m, s, 'qH'), 2) + '</td><td>' + f(avgG(cur.m, s, 'lots'), 1) + '</td><td>' + f(avgG(cur.m, s, 'h'), 2) + '</td><td>' + f(meanSd(ratios)[0], 3) + '</td></tr>';
+    });
+    var wr = cur.m.map(function (m) { return m.wip / (m.thr * m.ctm); });
+    html += '<tr><td><strong>whole line</strong></td><td>-</td><td>' + f(['f', 'l', 'e'].reduce(function (a, s) { return a + avgG(cur.m, s, 'qLots'); }, 0), 1) + '</td><td>' + f(['f', 'l', 'e'].reduce(function (a, s) { return a + avgG(cur.m, s, 'qH'); }, 0), 2) + '</td><td>' + f(meanSd(wip)[0], 1) + '</td><td>' + f(ctMean, 2) + '</td><td>' + f(meanSd(wr)[0], 3) + '</td></tr></table>' +
+      '<div style="margin-top:3px">Throughput <span class="mono">' + f(meanSd(thr)[0], 3) + '</span> lots/h; cycle time <span class="mono">' + f(ctMean, 2) + ' ± ' + f(ctHalf, 2) + '</span> h (95 %).</div>';
+    $('statsLine').innerHTML = html;
+    var labCt = meanSd(lab.m.map(function (m) { return m.ctm; }))[0];
+    var diffs = cur.m.map(function (m, j) { return m.ctm - lab.m[j].ctm; }), dm = meanSd(diffs)[0], dh = half(diffs);
+    var same = (c.nf === LAB.nf && c.nl === LAB.nl && c.ne === LAB.ne && !$('fastL').checked && !$('fastE').checked);
+    var msg = $('msgLine'), cls = 'note info', txt;
+    if (c.lam > capMin - 1e-9) {
+      cls = 'note bad'; txt = 'The load (' + f(c.lam, 2) + ' lots/h) is at or above the capacity of the ' + maxName + ' group (' + f(capMin, 2) + ' lots/h): its queue grows for as long as the line runs, so there is no steady state and the numbers depend on the run length. Little\u2019s law needs a steady state: here L / (\u03bbW) is ' + f(meanSd(wr)[0], 2) + ' for the whole line. Add a tool or lower the load.';
+    } else if (maxU > 0.9) {
+      cls = 'note warn'; txt = 'The ' + maxName + ' group is busy ' + f(maxU * 100, 0) + ' % of the time. Near full utilization the queue, and the spread between replications, grow very fast: compare the width of the interval with the lab’s load.';
+    } else if (same) {
+      cls = 'note'; txt = 'This is the lab’s line. The ' + maxName + ' group is the busiest (' + f(maxU, 2) + '), and Little’s law holds at every boundary: L / (λW) is 1 within the noise. Try a faster lithography tool, then a faster etch tool.';
+    } else {
+      cls = 'note'; txt = 'Against the lab’s line at the same load, on the same random numbers, the mean cycle time changes by ' + f(dm, 2) + ' h ± ' + f(dh, 2) + ' (paired differences, 10 replications): ' + f(ctMean, 2) + ' h against ' + f(labCt, 2) + ' h. The busiest group is now ' + maxName + ' (' + f(maxU, 2) + ').';
+    }
+    msg.className = cls; msg.textContent = txt;
+    window.__m6 = { cfg: c, cts: cts, ctMean: ctMean, ctHalf: ctHalf, diff: dm, diffHalf: dh, maxU: maxU, maxName: maxName, capMin: capMin, thr: meanSd(thr)[0], wip: meanSd(wip)[0], wr: meanSd(wr)[0], tandem: tandem, labCt: labCt };
+  }
+  pair($('lam'), $('lamN'), drawLine);
+  ['nf', 'nl', 'ne', 'fastL', 'fastE', 'showLab'].forEach(function (id) { $(id).onchange = drawLine; });
+  $('newRand').onclick = function () { base += 1; cache = {}; labSweep = null; drawLine(); };
+  drawLine();
+
+  // ================================================================ tool 2: one furnace tube, three rules
+  var NM_C = 0.52, WALK = 0.10, FAULT_RATE = 0.35, FAULT_P = 1 / 150, QV = 0.01, RV = 0.16, LIM5 = 5.0, NRUN = 170, CAL_H = 8;
+  var tubeSeed = 1;
+  function makeTube(seed) {                          // the same noise for every rule
+    var r = rng(seed * 7919 + 101), t = { rate: 0.06 + 0.03 * r(), walk: [], noise: [], u: [] };
+    for (var i = 0; i <= NRUN; i++) { t.walk.push(gauss(r) * WALK); t.noise.push(gauss(r) * Math.sqrt(RV)); t.u.push(r()); }
+    return t;
+  }
+  // policy: 'none', 'prev' or 'pred'; failAt: a run number (the single failure), or 0 for none, or -1 for random failures
+  function life(t, policy, p, failAt) {
+    var bias = 0, failing = false, runs = 0, dhat = 0, P = RV, recent = [], rows = [], cal = [], off = 0, failed = false, failRunStart = null, delays = [];
+    for (var i = 1; i <= NRUN; i++) {
+      if (!failing && ((failAt > 0 && !failed && i === failAt) || (failAt < 0 && t.u[i] < FAULT_P))) { failing = true; failed = true; failRunStart = i; }
+      bias += t.rate + (failing ? FAULT_RATE : 0) + t.walk[i];
+      var drift = NM_C * bias, y = drift + t.noise[i], Pm = P + QV, K = Pm / (Pm + RV);
+      dhat += K * (y - dhat); P = (1 - K) * Pm; runs += 1; recent.push(dhat);
+      if (drift > LIM5) off += 1;
+      rows.push([i, drift, dhat]);
+      var go = false;
+      if (policy === 'prev') go = runs >= p.iv;
+      else if (policy === 'pred') { var tail = recent.slice(-p.k); go = tail.length >= p.k && tail.every(function (v) { return Math.abs(v) > p.lim; }); }
+      if (go) { cal.push(i); if (failing) delays.push(i - failRunStart + 1); bias = 0; failing = false; runs = 0; dhat = 0; P = RV; recent = []; }
+    }
+    return { rows: rows, cal: cal, off: off, delays: delays };
+  }
+  function params() { return { iv: +$('iv').value, lim: parseFloat($('lm').value), k: +$('kk').value }; }
+  var MC_MODE = false;
+  function drawTube() {
+    var p = params(), fa = +$('fa').value, t = makeTube(tubeSeed);
+    var A = life(t, 'prev', p, fa), B = life(t, 'pred', p, fa), N0 = life(t, 'none', p, fa);
+    var svg = $('tubeSvg'); clear(svg);
+    var ymax = 9, panels = [['preventive: calibrate every ' + p.iv + ' runs', A, 0], ['predictive: alarm at ' + f(p.lim, 1) + ' nm for ' + p.k + (p.k === 1 ? ' run' : ' runs'), B, 1]];
+    panels.forEach(function (pn) {
+      var top = 4 + pn[2] * 156, H = 105, y0 = top + 18 + H, y1 = top + 18;
+      var X = function (v) { return 46 + v / NRUN * (560 - 46 - 10); }, Y = function (v) { return y0 - Math.min(v, ymax + 0.6) / ymax * H; };
+      [0, 2, 5, 8].forEach(function (v) { sv(svg, 'line', { x1: 46, y1: Y(v), x2: 550, y2: Y(v), stroke: '#E4DCE0' }); sv(svg, 'text', { x: 40, y: Y(v) + 4, 'font-size': 11, fill: '#6A626B', 'text-anchor': 'end' }, String(v)); });
+      sv(svg, 'line', { x1: 46, y1: y0, x2: 550, y2: y0, stroke: '#24313D', 'stroke-width': 1.4 });
+      sv(svg, 'line', { x1: 46, y1: Y(5), x2: 550, y2: Y(5), stroke: '#B3261E', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' });
+      sv(svg, 'line', { x1: 46, y1: Y(p.lim), x2: 550, y2: Y(p.lim), stroke: '#A06A00', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' });
+      var cuts = pn[1].cal.slice(), segs = [], cur = [], rows = pn[1].rows, i;
+      for (i = 0; i < rows.length; i++) { cur.push(rows[i]); if (cuts.indexOf(rows[i][0]) >= 0) { segs.push(cur); cur = []; } }
+      if (cur.length) segs.push(cur);
+      segs.forEach(function (sg) {
+        line(svg, sg.map(function (r) { return r[0]; }), sg.map(function (r) { return r[1]; }), X, Y, '#2F5E8E', 2);
+        line(svg, sg.map(function (r) { return r[0]; }), sg.map(function (r) { return r[2]; }), X, Y, '#99004C', 1.4, '4 3');
+      });
+      cuts.forEach(function (c) { sv(svg, 'line', { x1: X(c), y1: y0, x2: X(c), y2: y1 - 4, stroke: '#2E7D4F', 'stroke-width': 2.4 }); });
+      if (fa > 0) sv(svg, 'line', { x1: X(fa), y1: y0, x2: X(fa), y2: y1 + 14, stroke: '#6A626B', 'stroke-width': 1.3, 'stroke-dasharray': '2 3' });
+      sv(svg, 'text', { x: 48, y: y1 - 6, 'font-size': 12.5, fill: '#24313D', 'font-weight': 600 }, pn[0]);
+      sv(svg, 'text', { x: 550, y: y1 - 6, 'font-size': 12, fill: pn[1].off ? '#B3261E' : '#2E7D4F', 'text-anchor': 'end', 'font-weight': 600 }, 'calibrations ' + pn[1].cal.length + ' · runs beyond 5 nm ' + pn[1].off);
+      sv(svg, 'text', { x: 52, y: Y(5) - 3, 'font-size': 10.5, fill: '#B3261E' }, '5 nm: off target above this');
+      if (pn[2] === 1) { [0, 50, 100, 150].forEach(function (v) { sv(svg, 'text', { x: X(v), y: y0 + 14, 'font-size': 11, fill: '#6A626B', 'text-anchor': 'middle' }, String(v)); }); sv(svg, 'text', { x: 298, y: y0 + 27, 'font-size': 11.5, fill: '#6A626B', 'text-anchor': 'middle' }, 'run' + (fa > 0 ? ' (dotted line: failure starts at run ' + fa + ')' : '')); }
+    });
+    var lost = function (n) { return n * CAL_H; };
+    $('statsTube').innerHTML = '<table><tr><th>rule</th><th>calibrations</th><th>tube hours out</th><th>runs beyond 5 nm</th><th>runs from failure to calibration</th></tr>' +
+      '<tr><td>none</td><td>0</td><td>0</td><td>' + N0.off + '</td><td>-</td></tr>' +
+      '<tr><td>preventive</td><td>' + A.cal.length + '</td><td>' + lost(A.cal.length) + '</td><td>' + A.off + '</td><td>' + (A.delays.length ? A.delays[0] : '-') + '</td></tr>' +
+      '<tr><td>predictive</td><td>' + B.cal.length + '</td><td>' + lost(B.cal.length) + '</td><td>' + B.off + '</td><td>' + (B.delays.length ? B.delays[0] : '-') + '</td></tr></table>';
+    if (MC_MODE) $('statsTube').innerHTML = mcHtml(p);
+    var msg = $('msgTube'), cls = 'note info', txt;
+    if (fa === 0) { cls = 'note'; txt = 'With no failure the tube only drifts slowly. The preventive rule still calibrates every ' + p.iv + ' runs (' + A.cal.length + ' calibrations, ' + lost(A.cal.length) + ' hours out of service); the predictive rule waits until the estimate says so (' + B.cal.length + '). Calibrations are not free: each one takes a tube out of the line for 8 hours.'; }
+    else if (A.off > 0 && B.off === 0) { cls = 'note'; var d0 = B.delays.length ? B.delays[0] : 0; txt = 'The failure began at run ' + fa + ' and the calendar did not come until later: ' + A.off + (A.off === 1 ? ' run' : ' runs') + ' went beyond 5 nm. The predictive rule calibrated ' + d0 + (d0 === 1 ? ' run' : ' runs') + ' after the failure began, and no run went beyond 5 nm.'; }
+    else if (A.off === 0 && B.off === 0) { cls = 'note info'; txt = 'Here the calendar happened to fall soon after the failure began, so neither rule let a run go beyond 5 nm. Move the failure run, or press New noise, and compare again. One tube is one replication: use the button for 100 random tubes.'; }
+    else if (B.off > 0) { cls = 'note warn'; txt = 'The predictive rule let ' + B.off + (B.off === 1 ? ' run' : ' runs') + ' go beyond 5 nm: the alarm limit or the number of runs in a row is too lax for this failure, because the drift grows by about 0.18 nm per run once the thermocouple fails. Lower the limit or the runs in a row.'; }
+    msg.className = cls; msg.textContent = txt;
+    window.__m6t = { A: A, B: B, N0: N0, makeTube: makeTube, life: life };
+  }
+  function mcHtml(p) {
+    var res = { none: [], prev: [], pred: [] }, calN = { none: [], prev: [], pred: [] }, s;
+    for (s = 1; s <= 100; s++) {
+      var t = makeTube(1000 + s);
+      ['none', 'prev', 'pred'].forEach(function (pol) { var L = life(t, pol, p, -1); res[pol].push(L.off); calN[pol].push(L.cal.length); });
+    }
+    function cell(a) { return f(meanSd(a)[0], 1) + ' \u00b1 ' + f(half(a), 1); }
+    window.__m6mc = { res: res, calN: calN };
+    return '<table><tr><th>100 random tubes</th><th>calibrations</th><th>tube hours out</th><th>runs beyond 5 nm</th></tr>' +
+      ['none', 'prev', 'pred'].map(function (pol) { var hrs = calN[pol].map(function (v) { return v * CAL_H; }); return '<tr><td>' + { none: 'none', prev: 'preventive', pred: 'predictive' }[pol] + '</td><td>' + cell(calN[pol]) + '</td><td>' + cell(hrs) + '</td><td>' + cell(res[pol]) + '</td></tr>'; }).join('') + '</table>' +
+      '<div class="small" style="margin-top:2px">170 runs per tube, a failure has a 1 in 150 chance on every run, the same noise under all three rules. Mean \u00b1 95 % interval.</div>';
+  }
+  function mc() { MC_MODE = !MC_MODE; $('mc').textContent = MC_MODE ? 'One tube' : '100 random tubes'; drawTube(); }
+  pair($('iv'), $('ivN'), function () { drawTube(); });
+  pair($('lm'), $('lmN'), function () { drawTube(); });
+  pair($('kk'), $('kkN'), function () { drawTube(); });
+  $('fa').onchange = function () { drawTube(); };
+  $('newTube').onclick = function () { tubeSeed += 1; drawTube(); };
+  $('mc').onclick = mc;
+  drawTube();
+})();
+</script>
+</body>
+</html>
