@@ -281,7 +281,7 @@
     }
     var m = $('msgDelay');
     if (lost) { m.className = 'note bad'; m.textContent = 'Missing: the run stays in the twin\'s table with thickness NaN (unknown). The twin keeps its last estimate for this run, and the missing result should be reported so that someone follows it up. Counting it as 0 nm would wreck any average.'; }
-    else if (d <= LIMIT) { m.className = 'note'; m.textContent = 'On time: the result arrives ' + f(d, 1) + ' h after the run, within the 12-hour limit, so the twin can use it before the next lots are dispatched.'; }
+    else if (d <= LIMIT) { m.className = 'note'; m.textContent = 'On time: the result arrives ' + f(d, 1) + ' h after the run, within the 12-hour limit, so it can feed the twin\'s update for the next shift\'s recipe plan.'; }
     else { m.className = 'note warn'; m.textContent = 'Late: the result arrives ' + f(d, 1) + ' h after the run. The decision it was meant for has already been made without it. The twin should not use it as if it were fresh, but it is still a valid measurement for refitting the model later.'; }
   }
   pair($('dl'), $('dlN'), drawDelay);
@@ -371,7 +371,7 @@
   makeRun2(); drawClock();
 
   // ---------------------------------------------------------------- tool 3: leakage
-  var running = false, last = null;
+  var running = false, last = null, setVersion = 0;
   function auc(score, lab) {
     var idx = score.map(function (_, i) { return i; }).sort(function (a, b) { return score[a] - score[b]; });
     var rsum = 0, n1 = 0, n0 = 0;
@@ -451,12 +451,12 @@
       m.textContent = 'No signal is related to the labels, so any AUC above 0.5 is an illusion. Ranked on the training records, the mean is ' + f(mh, 2) + ', close to chance as it should be. Ranked on all records it is ' + f(ml, 2) + ': with ' + s.p + ' signals to choose from, some separate the test fails by luck, and the leaky ranking finds exactly those. Try more signals, or fewer records.';
     } else {
       m.className = 'note warn';
-      m.textContent = 'Ten signals really differ for fails. The honest ranking finds some of them, and its mean AUC, ' + f(mh, 2) + ', is what new records would give. The leaky ranking adds signals that only look good on these test records, so its mean, ' + f(ml, 2) + ', overstates what the model can do.';
+      m.textContent = 'Ten signals really differ for fails. The honest ranking finds some of them, and its mean AUC, ' + f(mh, 2) + ', is an honest estimate of what new records would give. The leaky ranking adds signals that only look good on these test records, so its mean, ' + f(ml, 2) + ', overstates what the model can do.';
     }
   }
   function runLeak() {
     if (running) return;
-    var s = readLeak(); running = true; $('runLeak').disabled = true;
+    var s = readLeak(), v0 = setVersion; running = true; $('runLeak').disabled = true;
     var res = [], rep = 0, base = Math.floor(Math.random() * 1e9);
     $('msgLeak').className = 'note info';
     function step() {
@@ -466,12 +466,21 @@
       $('msgLeak').textContent = 'Running repetition ' + rep + ' of 20...';
       if (rep < 20) { setTimeout(step, 0); return; }
       running = false; $('runLeak').disabled = false;
+      if (v0 !== setVersion) { $('msgLeak').className = 'note info'; $('msgLeak').textContent = 'Settings changed during the run: press Run 20 repetitions again.'; return; }
       if (res.length < 10) { $('msgLeak').className = 'note bad'; $('msgLeak').textContent = 'Too few fails to compute an AUC: raise the share of fails or the number of records.'; return; }
       last = { res: res, s: s }; drawLeak(res, s);
     }
     setTimeout(step, 0);
   }
-  ['nr', 'ns', 'nk', 'fs'].forEach(function (id) { pair($(id), $(id + 'N'), sizeNote); });
+  function settingsChanged() {
+    setVersion++; sizeNote();
+    if (!last) return;                       // results on screen belong to the old settings: clear them
+    last = null; drawLeak([], readLeak()); $('statsLeak').innerHTML = '';
+    $('msgLeak').className = 'note info';
+    $('msgLeak').textContent = 'Settings changed: press Run 20 repetitions again to see the results for the new settings.';
+  }
+  ['nr', 'ns', 'nk', 'fs'].forEach(function (id) { pair($(id), $(id + 'N'), settingsChanged); });
+  $('real').addEventListener('change', settingsChanged);
   $('runLeak').onclick = runLeak;
   sizeNote();
   drawLeak([], readLeak());
