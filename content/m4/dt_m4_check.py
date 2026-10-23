@@ -13,10 +13,15 @@ The learner writes
                                       for every row of X_new, True if any of its features is outside the training range
                                       of that feature widened by margin * (max - min) at both ends.
 
-The verification value is the thickness, in nm to 3 decimals, that the hybrid model predicts for the slot-65 wafer of
+The learner's result is the thickness, in nm to 3 decimals, that the hybrid model predicts for the slot-65 wafer of
 the learner's pending run: the ridge penalty is tuned on the 40 training runs with folds of whole runs, and the model is
 then refitted on all 60 measured runs. It is computed with the course's reference functions and printed only when every
 test passes.
+
+The verification value that the check prints is not the result itself, which the notebook shows earlier as a learning
+output. It is a code made from the result and the KEY: (A * round(1000 * result) + B * KEY + C) mod 9973, divided by
+1000, to 3 decimals, with A = 13, B = 23, C = 401 for this module. It is printed only when every test passes, so the
+result alone does not answer Question 1. It shows that the check passed for this KEY; it is not proof of authorship.
 """
 
 import numpy as np
@@ -77,6 +82,15 @@ def personal_raw(key):
 
 def personal_value(key):
     return round(personal_raw(key), 3)
+
+
+CODE_A, CODE_B, CODE_C = 13, 23, 401
+
+
+def verification_code(key):
+    """The verification value: a code made from the learner's result and the KEY, printed only when every test passes."""
+    n = int(round(personal_value(key) * 1000))
+    return ((CODE_A * n + CODE_B * int(key) + CODE_C) % 9973) / 1000
 
 
 # ---------------------------------------------------------------- helpers
@@ -330,4 +344,4 @@ def check_dt_module4(baseline_recent, make_ridge, hybrid_predict, outside_range,
     msgs = [("PASSED  " if ok else "NOT PASSED  ") + m for ok, m in results]
     if not all(ok for ok, _ in results):
         return False, msgs, None
-    return True, msgs, personal_value(key)
+    return True, msgs, verification_code(key)
