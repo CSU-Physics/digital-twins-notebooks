@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 DATA = Path(__file__).resolve().parent / "data"
 TRAIN_FRACTION = 0.7
@@ -75,15 +75,28 @@ def evaluate(X_train, y_train, X_test, y_test, columns):
     return _scores(model, X_test[columns], y_test)
 
 
-def screening_pipeline(keep_function, score_function, k=20):
+def screening_pipeline(keep_function, score_function=None, k=20):
     """A scikit-learn pipeline with the same steps, in the same order, as Steps 5 to 7 of the lab:
       1. keep_function(X) chooses the columns to keep (the missing-value and near-constant filter);
       2. score_function(X, y) ranks the kept columns, on the values as recorded (missing values skipped), and the k best stay;
       3. missing values are filled in with the median, the signals are scaled, and the balanced logistic regression is fitted.
     Every step learns from the rows the pipeline is fitted on, and only those, so cross-validation repeats the filter
-    and the ranking inside every fold. keep_function returns a list of column names; score_function returns one score per column."""
+    and the ranking inside every fold. keep_function returns a list of column names; score_function returns one score per column.
+
+    Called with one function, screening_pipeline(score_function, k=20), as in notebooks older than version 2026-10-25, it
+    returns the pipeline of secom_tools 1.0.0 (fill in, scale, keep the k best by the score, classify), so a saved older
+    notebook still runs and gives the result it gave before."""
     from sklearn.base import BaseEstimator, TransformerMixin
     steps, make_pipeline = _classifier()
+    if score_function is None:
+        from sklearn.feature_selection import SelectKBest
+        old_score_function = keep_function
+
+        def score(A, b):
+            A = pd.DataFrame(A)
+            return np.asarray(old_score_function(A, pd.Series(np.asarray(b), index=A.index)), dtype=float)
+
+        return make_pipeline(steps[0], steps[1], SelectKBest(score, k=k), steps[2])
 
     class KeepColumns(BaseEstimator, TransformerMixin):
         def __init__(self, keep_function=None):
