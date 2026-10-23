@@ -1,8 +1,12 @@
 """Prepared components of the Module 7 toolset-twin track (Digital Twins for Semiconductor Manufacturing).
 
-The toolset twin forecasts the weekly mean cycle time of the furnace, lithography and etch line of Module 6, whose furnace
+The toolset twin computes the weekly mean cycle time of the furnace, lithography and etch line of Module 6, whose furnace
 tubes drift as in Module 5 and are calibrated by the predictive rule. It is calibrated from the fab's lot log and driven by
-each week's actual lot releases (trace-driven). Every data value is SIMULATED with line.py (1.1.0); the "fab" is the same
+each week's actual lot releases (trace-driven). The capstone validates it retrospectively: replay() re-runs past weeks
+conditional on the releases that actually happened, so the test shows how well the line model reproduces the cycle time
+when the releases are known, not how well it forecasts future weeks whose releases are not yet known. The calibration
+uses the lots released in weeks 1 to 6, including the steps of the few that finish early in week 7, which a forecast made
+at the end of week 6 could not use. Every data value is SIMULATED with line.py (1.1.0); the "fab" is the same
 model with settings of its own, which the twin has to estimate, and with lithography breakdowns that the twin does not model.
 
 fab_log(key)              40 weeks of the line's lot log: release time and the start and end of each tool group, in hours
@@ -11,7 +15,7 @@ calibrate_now(...)        the Module 5 drift alarm as the predictive maintenance
 twin_config(estimates)    the twin's line settings from your estimates of the release rate and the process times
 weekly_cycle_time(log, weeks)   the mean cycle time of the lots that leave in each week
 twin_run(cfg, key, weeks, seed)   one trace-driven replication of the twin, on the log's clock (for verification)
-replay(cfg, key, weeks)   the twin's weekly mean cycle time, driven by the fab's release times (20 replications)
+replay(cfg, key, weeks)   the twin's weekly mean cycle time for past weeks, driven by the fab's release times (20 replications)
 WEEK_H, CAL_WEEKS, HELDOUT_WEEKS, CHALLENGING_WEEKS, TOLERANCE_H   the validation plan
 """
 
@@ -21,7 +25,7 @@ import pandas as pd
 import line
 from line import line_config, run_line
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 WEEK_H = 168.0                 # one week, hours
 CAL_WEEKS = (1, 6)             # weeks 1 to 6 of the log calibrate the twin
@@ -29,7 +33,7 @@ HELDOUT_WEEKS = (7, 30)        # held-out test: weeks 7 to 30
 CHALLENGING_WEEKS = (31, 40)   # challenging test: weeks 31 to 40, when the lithography tool breaks down now and then
 TOLERANCE_H = 1.0              # the twin is fit for its use if its mean absolute weekly error is at most 1.0 h
 REPLICATIONS = 20              # replications of the twin per week (seeds 1 to 20)
-LEAD_H = 200.0                 # the twin starts empty this long before the first week it forecasts (its warm-up)
+LEAD_H = 200.0                 # the twin starts empty this long before the first week it replays (its warm-up)
 _WARM_H = 300.0                # the simulated fab ran this long before the log starts
 _LAST_WEEK = 40
 
@@ -133,7 +137,7 @@ def twin_run(cfg, key, weeks, seed=1):
 
 
 def replay(cfg, key, weeks, replications=REPLICATIONS):
-    """The twin's forecast of the weekly mean cycle time for weeks[0] to weeks[1], trace-driven: the twin starts empty
+    """The twin's replay of the weekly mean cycle time for weeks[0] to weeks[1], trace-driven: the twin starts empty
     LEAD_H hours before the first week, its lots are released at the fab's own release times (from fab_log(key)), and
     its process times, tube drift and calibrations are its own, from seeds 1 to 20. Returns a Series indexed by week: the
     mean over the replications. Results are kept, so asking again with the same settings is instant."""
@@ -145,22 +149,37 @@ def replay(cfg, key, weeks, replications=REPLICATIONS):
     return _REPLAY[ck].copy()
 
 
-def plot_weeks(observed, twin, baseline, title=None, tolerance=TOLERANCE_H):
-    """Observed and forecast weekly mean cycle time against the week, and the twin's error with the tolerance band."""
+def plot_weeks(observed, twin, baseline, title=None, tolerance=TOLERANCE_H, window_name="test"):
+    """Observed and replayed weekly mean cycle time against the week, and the twin's error, with the tolerance for scale.
+
+    The verdict is about the mean absolute error (MAE) over all the weeks shown, not about single weeks: a week outside the
+    shaded band does not by itself fail the twin, and an MAE within the tolerance does not make every week acceptable.
+    The lower panel's title gives that MAE with its approximate 95 % interval (which treats the weeks as independent) and
+    the tolerance."""
     import matplotlib.pyplot as plt
-    fig, axes = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
+    from capstone import mae_ci
+    fig, axes = plt.subplots(2, 1, figsize=(9, 6.6), sharex=True)
     axes[0].plot(observed.index, observed.values, "o-", ms=4, lw=1, color="0.35", label="fab log")
-    axes[0].plot(twin.index, twin.values, ".-", ms=4, lw=1.2, color="C0", label="twin (trace-driven, 20 replications)")
+    axes[0].plot(twin.index, twin.values, ".-", ms=4, lw=1.2, color="C0", label="twin (trace-driven replay, 20 replications)")
     axes[0].plot(observed.index, np.full(len(observed), baseline), "--", lw=1.2, color="C3", label="baseline: mean of weeks 1 to 6")
     axes[0].set_ylabel("weekly mean cycle time (h)")
-    axes[1].axhspan(-tolerance, tolerance, color="C2", alpha=0.15, label=f"tolerance, +/- {tolerance:g} h")
+    axes[1].axhspan(-tolerance, tolerance, color="C2", alpha=0.15, label=f"+/- {tolerance:g} h: the MAE tolerance, for scale")
     axes[1].plot(observed.index, (observed - twin).values, ".-", ms=4, lw=1, color="C0", label="twin error (log - twin)")
     axes[1].axhline(0, color="k", lw=0.8)
+    err = (observed - twin).to_numpy(dtype=float)
+    if np.sum(~np.isnan(err)) >= 2:
+        m, hw, n = mae_ci(err)
+        axes[1].set_title(f"{window_name} weeks {int(observed.index[0])} to {int(observed.index[-1])}: twin MAE {m:.2f} h, "
+                          f"approx. 95 % interval {m - hw:.2f} to {m + hw:.2f} h (n = {n}), tolerance on the MAE {tolerance:g} h",
+                          fontsize=8.5, loc="left")
     axes[1].set_ylabel("error (h)")
     axes[1].set_xlabel("week")
     for ax in axes:
         ax.legend(fontsize=8, loc="upper left")
     if title:
         axes[0].set_title(title, fontsize=10)
-    plt.tight_layout()
+    fig.text(0.01, 0.005, "The verdict compares the MAE of all the weeks shown, with its interval, with the tolerance. "
+             "A single week outside the band does not fail the twin,\nand an MAE within the tolerance does not make every week "
+             "acceptable.", fontsize=7.5, color="0.3", ha="left", va="bottom")
+    plt.tight_layout(rect=(0, 0.045, 1, 1))
     plt.show()

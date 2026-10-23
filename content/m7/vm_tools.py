@@ -16,7 +16,7 @@ from sklearn.model_selection import GroupKFold, cross_val_score
 
 from furnace import VM_FEATURES, VM_TRAIN_RUNS, VM_XI_NM, _rates_array
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 FEATURES = list(VM_FEATURES)
 ALPHAS = (0.01, 0.1, 1.0, 10.0, 100.0)   # ridge penalties the lab tries
@@ -37,7 +37,10 @@ def run_blocks(table, block_runs=BLOCK_RUNS):
 
 
 def block_folds(table, block_runs=BLOCK_RUNS):
-    """GroupKFold over the run blocks: (cv, groups) to pass to cross_val_score or GridSearchCV."""
+    """GroupKFold over the run blocks: (cv, groups) to pass to cross_val_score or GridSearchCV.
+    The folds keep whole runs (and blocks of neighbouring runs) together, which prevents leakage within runs. They are not
+    walk-forward validation: GroupKFold does not put the training runs before the validation runs, so some folds train on
+    later runs than they validate. For a tool that drifts, tune with expanding-window splits over whole runs instead."""
     groups = run_blocks(table, block_runs)
     return GroupKFold(n_splits=len(np.unique(groups))), groups
 

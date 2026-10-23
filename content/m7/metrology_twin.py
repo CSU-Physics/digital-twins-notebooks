@@ -24,7 +24,7 @@ from sklearn.preprocessing import StandardScaler
 import furnace as F
 from vm_tools import FEATURES, physics_prediction
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 TRAIN_RUNS = 40                # runs 1 to 40 train the hybrid model (five measured wafers each)
 LAST_RUN = 115                 # production runs 41 to 100, then 15 runs after the thermocouple replacement
@@ -172,26 +172,49 @@ def per_run_mae(log, column="error_nm", runs=None):
     return log.groupby("run_index")[column].apply(lambda e: float(np.mean(np.abs(e))))
 
 
-def plot_log(log, title=None, tolerance=TOLERANCE_NM):
-    """The twin's and the baseline's per-run mean absolute error against the run, with the tolerance."""
+def plot_log(log, title=None, tolerance=TOLERANCE_NM, windows=None):
+    """The sampled wafers, and the twin's and the baseline's per-run mean absolute error against the run, with the tolerance.
+
+    The verdict is about the MAE over all the runs of a test window, not about single runs: a run above the tolerance line
+    does not by itself fail the twin, and an MAE within the tolerance does not make every run acceptable. For each test
+    window (by default the held-out and the challenging window) the lower panel draws the twin's MAE over the window as a
+    horizontal line with its approximate 95 % interval (which treats the runs as independent) as a shaded band."""
     import matplotlib.pyplot as plt
+    from capstone import mae_ci
+    if windows is None:
+        windows = {"held-out": HELDOUT_RUNS, "challenging": CHALLENGING_RUNS}
     tw = per_run_mae(log, "error_nm")
     bl = per_run_mae(log, "baseline_error_nm")
-    fig, axes = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(9, 6.6), sharex=True)
     s = log[log["sampled"]]
     axes[0].plot(s["run_index"], s["measured_nm"], "o", ms=4, color="0.35", label="sampled wafer, measured")
     axes[0].plot(s["run_index"], s["predicted_nm"], ".-", ms=4, lw=1.1, color="C0", label="sampled wafer, twin (before measuring)")
     axes[0].set_ylabel("thickness (nm)")
-    axes[1].axhline(tolerance, color="C2", lw=1.2, ls="--", label=f"tolerance, {tolerance:g} nm")
-    axes[1].plot(tw.index, tw.values, ".-", ms=4, lw=1, color="C0", label="twin: mean |error| of the run's 5 wafers")
+    axes[1].axhline(tolerance, color="C2", lw=1.2, ls="--", label=f"tolerance on the window MAE, {tolerance:g} nm")
+    axes[1].plot(tw.index, tw.values, ".-", ms=4, lw=1, color="C0", alpha=0.8, label="twin: mean |error| of the run's 5 wafers")
     axes[1].plot(bl.index, bl.values, ".-", ms=3, lw=0.8, color="C3", label="baseline")
+    lines = []
+    for k, (name, (a, b)) in enumerate(windows.items()):
+        runs = tw.loc[(tw.index >= a) & (tw.index <= b)]
+        if runs.size < 2:
+            continue
+        m, hw, n = mae_ci(runs.to_numpy())
+        axes[1].fill_between([a - 0.5, b + 0.5], m - hw, m + hw, color="C0", alpha=0.18, lw=0,
+                             label="twin MAE of each test window, with its approx. 95 % interval" if k == 0 else None)
+        axes[1].hlines(m, a - 0.5, b + 0.5, color="C0", lw=2.4)
+        lines.append(f"{name}, runs {a} to {b}: twin MAE {m:.2f} nm, interval {m - hw:.2f} to {m + hw:.2f} nm (n = {n})")
+    if lines:
+        axes[1].set_title("; ".join(lines) + f"; tolerance on the MAE {tolerance:g} nm", fontsize=8, loc="left", wrap=True)
     axes[1].axvline(REPLACED_FROM_RUN - 0.5, color="k", lw=0.8, ls=":")
     axes[1].set_ylabel("mean |error| (nm)")
     axes[1].set_xlabel("run")
     axes[1].set_ylim(0, None)
-    for ax in axes:
-        ax.legend(fontsize=8, loc="upper left")
+    axes[0].legend(fontsize=8, loc="upper left")
+    axes[1].legend(fontsize=7.5, loc="upper left", ncol=2, framealpha=0.9)
     if title:
         axes[0].set_title(title, fontsize=10)
-    plt.tight_layout()
+    fig.text(0.01, 0.005, "The verdict compares the MAE of a whole test window, with its interval, with the tolerance. "
+             "A single run above the line does not fail the twin,\nand an MAE within the tolerance does not make every run "
+             "acceptable.", fontsize=7.5, color="0.3", ha="left", va="bottom")
+    plt.tight_layout(rect=(0, 0.045, 1, 1))
     plt.show()

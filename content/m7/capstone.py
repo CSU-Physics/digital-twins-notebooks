@@ -6,7 +6,7 @@ mae_ci(errors)          the mean absolute error of a set of errors and the half-
 VERDICTS                the three validation verdicts: "meets", "misses" and "insufficient evidence"
 blank_datasheet()       an empty twin data sheet (a dict) to fill in
 show_options(track)     the fixed choices of the data sheet for one track ("process", "metrology" or "toolset")
-show_datasheet(sheet, track)   the filled data sheet, as text
+show_datasheet(sheet, track, results, tolerance, key, version)   the filled data sheet, as text, with the evidence behind its verdicts
 """
 
 import math
@@ -14,7 +14,7 @@ import math
 import numpy as np
 from scipy import stats
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 TRACKS = ("process", "metrology", "toolset")
 VERDICTS = ("meets", "misses", "insufficient evidence")
@@ -128,7 +128,8 @@ OPTIONS = {
         "intended_use": {
             "A": "The cycle time of each individual lot, for dispatching decisions.",
             "B": "The weekly mean cycle time of one simulated furnace, lithography and etch line at its usual release rate, with "
-                 "predictive furnace maintenance, for capacity planning.",
+                 "predictive furnace maintenance, computed from a given week's lot releases, for capacity planning (validated "
+                 "retrospectively, on past weeks with their actual releases).",
             "C": "The cycle time of a whole fab with re-entrant flow and many products.",
             "D": "The oxide thickness of the lots that leave the furnace.",
         },
@@ -149,15 +150,15 @@ OPTIONS = {
             "A": "Risk: lots missing from the log or logged with wrong times (a gap in the MES records). Mitigation: check the log "
                  "for missing lot numbers and impossible times (an end before its start) before calibrating, and recalibrate after a fix.",
             "B": "Risk: lots missing from the log. Mitigation: run more replications.",
-            "C": "Risk: the twin's forecast is used to promise delivery dates. Mitigation: report a narrower interval.",
-            "D": "Risk: the twin's forecast is changed, or used without its interval. Mitigation: publish each forecast with its "
+            "C": "Risk: the twin's result is used to promise delivery dates. Mitigation: report a narrower interval.",
+            "D": "Risk: the twin's result is changed, or used without its interval. Mitigation: publish each result with its "
                  "interval and validation date, from a controlled copy of the twin whose changes are logged.",
         },
         "low_confidence_action": {
             "A": "Run more replications until the interval is narrow enough to claim the tolerance.",
-            "B": "Report the twin's forecast as usual.",
+            "B": "Report the twin's result as usual.",
             "C": "Recalibrate the twin on the breakdown weeks and call the result validated.",
-            "D": "Plan with the measured cycle times of recent weeks, mark the twin's forecast as not valid for these weeks, and add "
+            "D": "Plan with the measured cycle times of recent weeks, mark the twin's results as not valid for these weeks, and add "
                  "a breakdown model, validated on new weeks, before using the twin again.",
         },
     },
@@ -187,16 +188,34 @@ def show_options(track):
         print()
 
 
-def show_datasheet(sheet, track):
-    """Print a filled data sheet as text, with the chosen options written out."""
+UNITS = {"process": ("nm", "runs"), "metrology": ("nm", "runs"), "toolset": ("h", "weeks")}
+
+
+def show_datasheet(sheet, track, results=None, tolerance=None, key=None, version=None):
+    """Print a filled data sheet as text, with the chosen options written out.
+
+    With results (the dict of (mae, half_width, n) for "heldout", "challenging" and "baseline" that Step 9 computes for
+    your KEY) and the tolerance, it also prints the evidence behind the verdicts: each MAE with its approximate 95 %
+    interval, the number of test units, the tolerance and the units, and the KEY, notebook version and date of the sheet."""
+    import datetime
+
     def opt(field, letter):
         return OPTIONS[track][field].get(str(letter).strip().upper(), "(not one of the options)") if letter not in (None, "") else "(blank)"
+    unit, units_of = UNITS.get(track, ("", "units"))
     print(f"TWIN DATA SHEET ({track} twin)")
     print(TITLES["intended_use"][3:].split(" (")[0] + ":", opt("intended_use", sheet.get("intended_use")))
     print(TITLES["data_sources"][3:].split(" (")[0] + ":", opt("data_sources", sheet.get("data_sources")))
-    print("Validation results: held-out MAE", sheet.get("heldout_mae"), "(" + str(sheet.get("heldout_verdict")) + "),",
+    print(f"Validation results ({unit}): held-out MAE", sheet.get("heldout_mae"), "(" + str(sheet.get("heldout_verdict")) + "),",
           "challenging MAE", sheet.get("challenging_mae"), "(" + str(sheet.get("challenging_verdict")) + "),",
           "baseline MAE", sheet.get("baseline_mae"))
+    if results:
+        tol_text = f"{tolerance:g} {unit}" if tolerance is not None else "(not given)"
+        print(f"  Evidence (tolerance {tol_text} on the MAE; the intervals are approximate 95 % intervals that treat the "
+              f"test {units_of} as independent):")
+        for name in ("heldout", "challenging", "baseline"):
+            if name in results:
+                m, hw, n = results[name]
+                print(f"    {name:12s} MAE {m:.3f} {unit}, interval {m - hw:.3f} to {m + hw:.3f} {unit}, n = {n} {units_of}")
     print("Do not use for:")
     for letter in (sheet.get("do_not_use") or []):
         print("  -", opt("do_not_use", letter))
@@ -204,3 +223,5 @@ def show_datasheet(sheet, track):
     print(TITLES["low_confidence_action"][3:].split(" (")[0] + ":", opt("low_confidence_action", sheet.get("low_confidence_action")))
     if sheet.get("note"):
         print("Note:", sheet["note"])
+    print(f"KEY {key if key is not None else '(not set)'} · notebook version {version or '(not given)'} · "
+          f"sheet dated {datetime.date.today().isoformat()} (the day this cell ran)")

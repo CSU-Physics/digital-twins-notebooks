@@ -21,7 +21,7 @@ import furnace as F
 from oxide_tools import fit_deal_grove, predict
 from r2r_tools import dg_thickness
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 QUAL_TIMES_MIN = (60, 66, 72, 78, 84, 90, 96, 102, 108, 114, 120, 126)   # qualification runs, minutes
 MONITOR_SD_NM = 0.32           # standard deviation of one monitor-wafer measurement, stated by the metrology group
@@ -29,7 +29,8 @@ Q_NM2 = 0.01                   # Module 5: variance of the offset's random step 
 R_NM2 = 0.16                   # Module 5: variance of one offset observation (nm^2)
 TOLERANCE_NM = 0.5             # the twin is fit for its use if its mean absolute error is at most 0.5 nm
 HELDOUT_RUNS = (1, 60)         # held-out test: runs 1 to 60 of the "drift" scenario, each predicted before it is measured
-CHALLENGING_RUNS = (31, 60)    # challenging test: runs 31 to 60 of the "failing" scenario (the thermocouple fails by run 35)
+CHALLENGING_RUNS = (31, 60)    # challenging test: a fixed window, runs 31 to 60 of the "failing" scenario; the failure starts
+                              # between runs 25 and 35, so the window spans the transition and the operation after it
 
 
 def qualification_runs(key):
@@ -115,23 +116,41 @@ def runs_between(log, first_last):
     return log[(log["run"] >= a) & (log["run"] <= b)]
 
 
-def plot_log(log, title=None, tolerance=TOLERANCE_NM):
-    """Measured and predicted monitor-wafer thickness against the run, and the twin's errors with the tolerance band."""
+def plot_log(log, title=None, tolerance=TOLERANCE_NM, window=None, window_name="test window"):
+    """Measured and predicted monitor-wafer thickness against the run, and the twin's errors, with the tolerance for scale.
+
+    The verdict is about the mean absolute error (MAE) of a whole test window, not about single runs: a run outside the
+    shaded band does not by itself fail the twin, and an MAE within the tolerance does not make every run acceptable.
+    With window = (first, last) the plot also marks that window and prints its MAE with the approximate 95 % interval
+    (which treats the runs as independent) next to the tolerance."""
     import matplotlib.pyplot as plt
-    fig, axes = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
+    from capstone import mae_ci
+    fig, axes = plt.subplots(2, 1, figsize=(9, 6.6), sharex=True)
     axes[0].plot(log["run"], log["measured_nm"], "o", ms=4, color="0.35", label="measured monitor wafer")
     axes[0].plot(log["run"], log["predicted_nm"], ".-", ms=4, lw=1.2, color="C0", label="twin (predicted before the run)")
     axes[0].plot(log["run"], log["baseline_nm"], "--", lw=1.2, color="C3", label="baseline: Deal-Grove alone")
     axes[0].set_ylabel("thickness (nm)")
-    axes[1].axhspan(-tolerance, tolerance, color="C2", alpha=0.15, label=f"tolerance, +/- {tolerance:g} nm")
+    axes[1].axhspan(-tolerance, tolerance, color="C2", alpha=0.15, label=f"+/- {tolerance:g} nm: the MAE tolerance, for scale")
     axes[1].plot(log["run"], log["error_nm"], ".-", ms=4, lw=1, color="C0", label="twin error")
     axes[1].plot(log["run"], log["baseline_error_nm"], ".-", ms=3, lw=0.8, color="C3", label="baseline error")
     axes[1].axhline(0, color="k", lw=0.8)
     axes[1].set_ylabel("measured - predicted (nm)")
     axes[1].set_xlabel("production run")
+    if window is not None:
+        a, b = window
+        m, hw, n = mae_ci(runs_between(log, window)["error_nm"])
+        if a > log["run"].min() or b < log["run"].max():
+            for ax in axes:
+                ax.axvspan(a - 0.5, b + 0.5, color="0.5", alpha=0.08, lw=0)
+        axes[1].set_title(f"{window_name} window, runs {a} to {b}{' (shaded)' if a > log['run'].min() or b < log['run'].max() else ''}: "
+                          f"twin MAE {m:.2f} nm, approx. 95 % interval {m - hw:.2f} to {m + hw:.2f} nm (n = {n}), "
+                          f"tolerance on the MAE {tolerance:g} nm", fontsize=8.5, loc="left")
     for ax in axes:
         ax.legend(fontsize=8, loc="best")
     if title:
         axes[0].set_title(title, fontsize=10)
-    plt.tight_layout()
+    fig.text(0.01, 0.005, "The verdict compares the MAE of a whole test window, with its interval, with the tolerance. "
+             "A single run outside the band does not fail the twin,\nand an MAE within the tolerance does not make every run "
+             "acceptable.", fontsize=7.5, color="0.3", ha="left", va="bottom")
+    plt.tight_layout(rect=(0, 0.045, 1, 1))
     plt.show()
