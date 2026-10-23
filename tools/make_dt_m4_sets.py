@@ -32,6 +32,10 @@ for k in keys:
         break
 assert len(sets) == 200
 sets.sort(key=lambda d: d["key"])
+from dt_m4_check import CODE_A, CODE_B, CODE_C  # noqa: E402
+for s in sets:   # the verification value of Question 1: a code made from the result and the KEY (see dt_m4_check.py)
+    s["code"] = ((CODE_A * int(round(s["value"] * 1000)) + CODE_B * s["key"] + CODE_C) % 9973) / 1000
+assert len({s["code"] for s in sets}) == len(sets), "two KEYs share a verification code"
 json.dump(sets, open(ROOT / "dt_m4_solutions.json", "w"))
 vals = [s["value"] for s in sets]
 print("200 sets; KEYs", sets[0]["key"], "to", sets[-1]["key"], "; values", min(vals), "to", max(vals), "; distinct", len(set(vals)),

@@ -335,7 +335,7 @@ slide(f"""  <h2>How much thickness a degree costs</h2>
   <p class="small" style="margin-top:12px">Simulated furnace, example key 2026; the bias changes the true temperature only.</p>""")
 
 slide(f"""  <h2>The state the twin estimates: the offset d</h2>
-  {two(offset_fig(), ["<strong>d = measured monitor-wafer thickness − the twin's prediction for that run's recipe.</strong>", f"At qualification, d_ref = {D_REF:.2f} nm: Deal-Grove leaves out the fast early growth on bare wafers (Module 3). A known, steady offset is no problem.", "As the bias grows, d falls: that change is the drift.", "One monitor wafer per run is the only observation, and some runs have none."], size=22)}""")
+  {two(offset_fig(), ["<strong>d</strong>: the underlying furnace-model offset. Each run observes <strong>y = measured − predicted</strong> = d + noise; <strong>d̂</strong> is the estimate.", f"At qualification, d_ref = {D_REF:.2f} nm: Deal-Grove leaves out the fast early growth on bare wafers (Module 3). A known, steady offset is no problem.", "As the bias grows, d falls, and y with it: that change is the drift.", "One monitor wafer per run is the only observation, and some runs have none."], size=22)}""")
 
 slide(f"""  <h2>A fixed recipe on a drifting furnace</h2>
   {two(runs_fig([("fixed 90 min", LOG_F, MUTED)], label="Fixed recipe"), [f"Every run at 90 minutes: the achieved thickness falls about {S['target_nm'] - LOG_F['achieved_nm'].iloc[-5:].mean():.0f} nm below the target over 60 runs.", f"Mean absolute error {SUM['fixed 90 min']['mae_nm']:.2f} nm; largest deviation {SUM['fixed 90 min']['max_dev_nm']:.2f} nm.", "The run-to-run noise, about 0.4 nm in one observation, hides the trend from run to run; the drift wins over many runs.", "Simulated data, example key 2026."], size=22)}""")
@@ -365,7 +365,7 @@ slide(f"""  <h2>The recipe rule: invert Deal-Grove</h2>
   <ul style="font-size:23px">
     <li>The furnace grows the twin's prediction <strong>plus d</strong>, so the twin aims at the target <strong>minus d̂</strong>.</li>
     <li>From x² + A·x = B·(t + τ), with τ = (xᵢ² + A·xᵢ)/B: the same Deal-Grove model as Module 3, solved for t.</li>
-    <li><strong>Clip</strong> t to the recipe limits, 80 to 100 minutes. A clipped run is <strong>held at a limit</strong>: it cannot reach the target.</li>
+    <li><strong>Clip</strong> t to the recipe limits, 80 to 100 minutes. A clipped run is <strong>held at a limit</strong>: the time is capped, so the controller cannot apply its full correction.</li>
     <li>Example furnace: B = {S['B']} nm²/min, B/A = {S['BA']} nm/min, target {S['target_nm']} nm. With d̂ = d_ref = {D_REF:.2f} nm: t = {NT(D_REF):.2f} min.</li>
   </ul>""")
 
@@ -418,7 +418,7 @@ slide(f"""  <h2>Gaps, advisory mode and automatic mode</h2>
 
 slide(f"""  <h2>When to recalibrate, when to call maintenance</h2>
   <div>{fail_fig()}</div>
-  <p class="small" style="margin-top:0">Recalibrate when |d̂ − d_ref| &gt; {ALARM_LIMIT_NM} nm for {ALARM_RUNS} runs in a row: the drift is about 4 °C. In the drift scenario the alarm fires at run {ALARM_K} while the thickness is still on target. A failing thermocouple (above) drives the time to its limit: held for {SUM_FK['held_runs']} runs, off target by up to {SUM_FK['max_dev_nm']:.1f} nm. The alarm came {HELD_FK[0] - ALARM_FK} runs earlier: stop and call maintenance.</p>""")
+  <p class="small" style="margin-top:0">Recalibrate when |d̂ − d_ref| &gt; {ALARM_LIMIT_NM} nm for {ALARM_RUNS} runs in a row: the drift is about 4 °C. In the drift scenario the alarm fires at run {ALARM_K} while the thickness is still on target. A failing thermocouple (above, continuing without maintenance) drives the time to its limit: held for {SUM_FK['held_runs']} runs, off target by up to {SUM_FK['max_dev_nm']:.1f} nm. The alarm came {HELD_FK[0] - ALARM_FK} runs earlier: stop and call maintenance. Several runs in a row reduce false alarms; they do not rule them out.</p>""")
 
 slide("""  <h2>Summary</h2>
   <ul>

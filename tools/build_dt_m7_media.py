@@ -207,7 +207,7 @@ slide(f"""  <h2>Three tracks, one method</h2>
   <div class="cols" style="margin-top:6px">
     <div class="card"><h3>Process twin</h3><p>Module 3's calibrated Deal-Grove model, kept in sync by Module 5's Kalman filter. It predicts each run's monitor wafer and recommends the oxidation time.</p><p class="small" style="margin-top:10px">tolerance: MAE ≤ {P['tolerance']:g} nm</p></div>
     <div class="card"><h3>Metrology twin</h3><p>Module 4's hybrid virtual-metrology model, kept in sync with one sampled wafer per run. It predicts every product wafer from the furnace traces.</p><p class="small" style="margin-top:10px">tolerance: MAE ≤ {M_['tolerance']:g} nm</p></div>
-    <div class="card"><h3>Toolset twin</h3><p>Module 6's SimPy line with the drifting furnace of Module 5, calibrated from the fab's lot log. It forecasts the weekly mean cycle time.</p><p class="small" style="margin-top:10px">tolerance: weekly MAE ≤ {TS['tolerance']:g} h</p></div>
+    <div class="card"><h3>Toolset twin</h3><p>Module 6's SimPy line with the drifting furnace of Module 5, calibrated from the fab's lot log. It replays past weeks with their actual lot releases (a retrospective test) and computes the weekly mean cycle time.</p><p class="small" style="margin-top:10px">tolerance: weekly MAE ≤ {TS['tolerance']:g} h</p></div>
   </div>
   <p class="small" style="margin-top:14px">Each track takes about 2 hours, ends with the same six-field data sheet, and has its own project quiz. You need one.</p>""")
 
@@ -253,10 +253,12 @@ slide(f"""  <h2>Predict first, then use the measurement</h2>
 
 slide(f"""  <h2>The error, and how sure you are of it</h2>
   <div class="eq">MAE = mean |measured − predicted| &nbsp;&nbsp; half-width = t<sub>0.975, n−1</sub> · s / √n</div>
-  <ul style="font-size:24px">
+  <ul style="font-size:22px">
     <li>One error per <strong>independent test unit</strong>: a run, or a week. The five wafers of a run share the run's effects, so they count as one unit, not five.</li>
     <li>Process twin, example furnace: MAE {f3(P['heldout'][0])} nm, half-width {f3(P['heldout'][1])} nm, over {P['heldout'][2]} runs.</li>
     <li>More test units narrow the interval, about as 1/√n (Module 6).</li>
+    <li>The interval is <strong>approximate</strong>: it treats the units as independent, and neighbouring runs or weeks can be correlated, most of all while a twin adapts after a change.</li>
+    <li>The tolerance is on the <strong>MAE of the whole test</strong>, not on each single error.</li>
   </ul>""")
 
 slide(f"""  <h2>Three verdicts</h2>

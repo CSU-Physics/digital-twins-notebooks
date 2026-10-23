@@ -10,7 +10,7 @@ import nbformat as nbf
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "content" / "m1"
 NAME = "DT-M1-lab-first-twin.ipynb"
-VERSION = "2026-10-20"
+VERSION = "2026-10-25"
 META = {"kernelspec": {"name": "python", "display_name": "Python (Pyodide)", "language": "python"},
         "language_info": {"name": "python"}}
 
@@ -90,10 +90,12 @@ else:
     print(f"the simulation's real tau = {stream_truth(2026)['tau_s']:.2f} s   (a real furnace never tells you this)")"""),
 md("""Write down the fitted τ to 1 decimal: the lab check asks for it.
 
-**Claim only what the data support.** The fit lands within a standard error of the real τ because the data come from a first-order simulator with independent noise. That shows the fitting works on the course's simulator. It does not show that a real furnace is a first-order system: with real data, you would check the residuals and test the model on data it was not fitted to."""),
+**Claim only what the data support.** For this example stream the fitted τ happens to lie within one standard error of the simulation's real τ. Other streams need not: a standard error describes the typical spread of the fit, so for about a third of the KEYs the fitted τ lands further away than one standard error, and that is no sign of a mistake. A good fit shows that the fitting works on the course's simulator, which is a first-order system with independent noise. It does not show that a real furnace is a first-order system: with real data, you would check the residuals and test the model on data it was not fitted to."""),
 md("""## Step 4: the model on its own
 
-With τ fitted, the model can predict the whole run without looking at another reading. In the language of Module 1, this is a **digital model**: nothing flows from the furnace into it after the fit. `run_twin(stream, tau, gain, update=None)` runs it and records, for every reading, the prediction made just before it arrived and the error, reading minus prediction."""),
+With τ fitted, the model can predict the whole run without looking at another reading. In the language of Module 1, this is a **digital model**: nothing flows from the furnace into it after the fit. `run_twin(stream, tau, gain, update=None)` runs it and records, for every reading, the prediction made just before it arrived and the error, reading minus prediction.
+
+The cell reports the **RMS error** (root-mean-square error): the square root of the mean of the squared errors, where each error is a reading minus the prediction made before that reading arrived (and before it corrected the twin). Missing readings are left out, and the result is in °C. For example, errors of +1, −2 and +2 °C give √((1 + 4 + 4)/3) = 1.73 °C."""),
 code("""assert tau_hat is not None, "Complete Step 3 first: fit tau, then run this cell again."
 model_only = run_twin(stream, tau_hat, gain=0.5, update=None)
 late = model_only["time_s"] >= 600

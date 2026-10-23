@@ -10,7 +10,7 @@ import nbformat as nbf
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "content" / "m2"
 NAME = "DT-M2-lab-fab-data.ipynb"
-VERSION = "2026-10-21"
+VERSION = "2026-10-25"
 META = {"kernelspec": {"name": "python", "display_name": "Python (Pyodide)", "language": "python"},
         "language_info": {"name": "python"}}
 
@@ -135,6 +135,8 @@ Write `keep_signals(X_train, max_missing=0.5, max_share=0.95)`. It returns a **l
 1. its missing fraction is **at most** `max_missing`;
 2. the most common of its **present** values makes up **less than** `max_share` of the present values.
 
+These two rules are a simple **screening heuristic** for this exercise, not a guarantee that a removed signal cannot tell fails from passes: a signal that is constant except in a few records can still mark a rare failure condition, which matters when fails are this rare.
+
 Hints: `col.dropna()` gives the present values. `present.value_counts(normalize=True)` gives the share of each value, largest first, so `.iloc[0]` is the share of the most common one. A column with no present values at all is dropped by rule 1. Use the arguments `max_missing` and `max_share`, not fixed numbers: the check tries other settings."""),
 code("""def keep_signals(X_train, max_missing=0.5, max_share=0.95):
     \"\"\"Names of the columns that are at most max_missing missing and not near-constant (top share below max_share).\"\"\"
@@ -195,7 +197,7 @@ leaky = evaluate(X_train, y_train, X_test, y_test, top20_all)
 print(f"signals in both top-20 lists: {len(set(top20) & set(top20_all))}")
 print(f"ranked on training records only:  AUC {honest['auc']:.3f}, fails found {honest['fails_found']} of {honest['fails']}")
 print(f"ranked on all records (leakage):  AUC {leaky['auc']:.3f}, fails found {leaky['fails_found']} of {leaky['fails']}")"""),
-md("""**What to notice.** The leaky version looks much better, and none of that improvement is real. The ranking saw the test labels, so it picked signals that happen to separate the fails **of the test period**. On truly new records, which nobody can rank in advance, it would do no better than the honest version. This is **data leakage**: information that would not be available at prediction time was used to build the model.
+md("""**What to notice.** The leaky version looks much better, but its higher score is not reliable evidence of better performance on new records. The ranking saw the test labels, so it picked signals that happen to separate the fails **of the test period**, and the test records can no longer give an honest estimate of how the model would do on records nobody has seen. The leak invalidates the estimate; it does not tell you exactly how the model would perform in the future. This is **data leakage**: information that would not be available at prediction time was used to build the model.
 
 To see that leakage can create a result from nothing, the cell below **shuffles** the labels, so that no signal has any real link to them, and repeats both versions five times. With shuffled labels the expected AUC is 0.5."""),
 code("""rng = np.random.default_rng(2026)
@@ -212,14 +214,14 @@ md("""## Step 9: the same rule inside cross-validation
 
 Cross-validation splits the training records into folds, fits on all but one fold and scores the one left out, in turn. It is how models are compared and tuned **without touching the test records**. The rule from Step 8 applies inside every fold: the ranking must be learned from the fitting folds only.
 
-`screening_pipeline(s2n_scores, k=20)` builds a scikit-learn **pipeline** that fills in missing values, scales, keeps the 20 signals with the highest score from **your** `s2n_scores()`, and fits the classifier. Because the ranking is a step of the pipeline, scikit-learn repeats it inside every fold, on that fold's fitting records only.
+The same holds for the screening filter of Step 5: which signals are mostly missing or nearly constant also depends on the records it looks at. `screening_pipeline(keep_signals, s2n_scores, k=20)` builds a scikit-learn **pipeline** with the steps of Steps 5 to 7, in the same order: **your** `keep_signals()` drops signals, **your** `s2n_scores()` ranks the rest on the values as recorded and keeps the top 20, then missing values are filled in, the signals are scaled and the classifier is fitted. Because the filter and the ranking are steps of the pipeline, scikit-learn repeats both inside every fold, on that fold's fitting records only. Fitted on all the training records, the pipeline picks the same 20 signals as Step 7.
 
 The cell compares two ways of forming five folds: at random, and in time order (each fold is scored with a model fitted on the records before it). It takes several seconds."""),
 code("""from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, cross_val_score
 
-pipe = screening_pipeline(s2n_scores, k=20)
-random_folds = cross_val_score(pipe, X_train[kept], y_train, cv=StratifiedKFold(5, shuffle=True, random_state=0), scoring="roc_auc")
-time_folds = cross_val_score(pipe, X_train[kept], y_train, cv=TimeSeriesSplit(5), scoring="roc_auc")
+pipe = screening_pipeline(keep_signals, s2n_scores, k=20)
+random_folds = cross_val_score(pipe, X_train, y_train, cv=StratifiedKFold(5, shuffle=True, random_state=0), scoring="roc_auc")
+time_folds = cross_val_score(pipe, X_train, y_train, cv=TimeSeriesSplit(5), scoring="roc_auc")
 print("random folds:", np.round(random_folds, 3), f"mean AUC {random_folds.mean():.3f}")
 print("time folds:  ", np.round(time_folds, 3), f"mean AUC {time_folds.mean():.3f}")
 print(f"test records (Step 7): AUC {honest['auc']:.3f}")"""),
@@ -240,7 +242,7 @@ ax.axvline(t.iloc[len(X_train)], color="gray", ls="--", lw=1)
 ax.set_ylabel("s059")
 ax.legend()
 plt.show()"""),
-md("""**What to notice.** `s059` and the share of fails both fall from July to October. In the training records fails sit at high `s059` values largely because fails were common in the summer, when `s059` was high. In the test records the separation almost disappears. Something that changed over time moved both, so the association in the training records does not show that `s059` causes fails, or even that it will flag fails next month.
+md("""**What to notice.** `s059` and the share of fails both fall from July to September; the share of fails rises again in October, while `s059` stays low. In the training records fails sit at high `s059` values largely because fails were common in the summer, when `s059` was high. In the test records the separation almost disappears. The pattern is consistent with **temporal confounding**: something that changed over time may have moved both. The data cannot show what it was, or that a single factor caused both changes. Either way, the association in the training records does not show that `s059` causes fails, or even that it will flag fails next month.
 
 An association found by screening is a lead for an engineer to investigate with process knowledge and, ideally, a designed experiment. It is not a cause. And because SECOM's signals are anonymized, with no link to a tool or a wafer, an engineer could not even look up what `s059` measures."""),
 md("""# Part B: the furnace's records, from three systems
@@ -286,7 +288,9 @@ Write `align_runs(runs, wafers, metrology)`. It returns a DataFrame with **one r
 
 - `run_id`;
 - `thickness_nm`: the average thickness of the run's measured wafers;
-- `delay_h`: the hours from the run's `end_time` to the time of its **last** metrology record, the moment the run's result is complete.
+- `delay_h`: the hours from the run's `end_time` to the time of its **latest available** metrology record.
+
+If one monitor wafer was never measured, the run's mean comes from the wafers that were, so it is a **partial** result, not a complete three-wafer result; the table keeps it, and a twin should know how many wafers each mean is based on. The lab also treats the time a wafer was measured as a simple stand-in for the time its result reaches the database.
 
 Steps:
 
@@ -307,10 +311,10 @@ print(len(table), "rows (there are", len(runs), "runs)")
 print(table[["run_id", "hold_mean_C", "thickness_nm", "delay_h"]].round(3).to_string(index=False))"""),
 md("""## Step 14: which results can the twin use?
 
-A twin that updates its estimate of the furnace before the next lots are dispatched can use a run's result only if it arrives in time. In this course that limit is `ON_TIME_H` = 12 hours. Each run is then one of three kinds:
+In this course the twin uses a run's result in its update for the next shift's recipe plan, which is fixed 12 hours after the run ends (`ON_TIME_H` = 12). A result can feed that update only if it arrives within 12 hours. Runs start about every four hours, so later runs go ahead before the update: the deadline belongs to that planning decision, not to the next run. Each run is then one of three kinds:
 
 - **on time**: the result arrived within 12 hours;
-- **late**: the result exists but arrived after 12 hours, too late for the decision it was meant for (it can still be used later, to refit the model);
+- **late**: the result exists but arrived after 12 hours, too late for the planning update it was meant for (it can still be used later, to refit the model);
 - **missing**: no result reached the database.
 
 The cell labels the runs, plots the mean hold temperature against the average thickness for the on-time runs, and computes their **correlation**, a number from −1 to 1 that says how closely the two move together along a straight line."""),
@@ -353,7 +357,7 @@ print(f"correlation over your {len(my_on_time)} on-time runs: "
       f"{np.corrcoef(my_on_time['hold_mean_C'], my_on_time['thickness_nm'])[0, 1]:.3f}")"""),
 md("""## Step 16: check your work
 
-The cell below tests your four functions on cases you cannot see: small made-up tables for Part A, and the records of other KEYs, a wafer that was never measured and records written out of order for Part B. If every test passes, it prints your **verification value**: the correlation between the mean hold temperature and the average thickness over the on-time runs of **your** records, computed with the course's reference functions. It should match the number Step 15 printed. Type it into Question 1 of the lab check.
+The cell below tests your four functions on cases you cannot see: small made-up tables for Part A, and the records of other KEYs, a wafer that was never measured and records written out of order for Part B. If every test passes, it prints your **verification value**: a code made from your KEY and the correlation of **your** records, computed with the course's reference functions. Only a passing check prints it, and it is **not** the correlation that Step 15 printed. Type it into Question 1 of the lab check.
 
 If it says **NOT PASSED**, read the message: it tells you what to fix."""),
 code("""# The course's check code is in dt_m2_check.py, next to this notebook.

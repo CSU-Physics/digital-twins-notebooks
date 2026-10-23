@@ -10,7 +10,7 @@ import nbformat as nbf
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "content" / "m3"
 NAME = "DT-M3-lab-oxidation-model.ipynb"
-VERSION = "2026-10-21"
+VERSION = "2026-10-25"
 META = {"kernelspec": {"name": "python", "display_name": "Python (Pyodide)", "language": "python"},
         "language_info": {"name": "python"}}
 
@@ -182,7 +182,9 @@ for x_meas in new["thickness_nm"]:
     print(f"  measured wafer: {x_meas:.2f} nm, {'inside' if inside else 'OUTSIDE'} the prediction band")"""),
 md("""Write down the half-width of the prediction band, to 2 decimals: the lab check asks for it.
 
-**What to notice.** The confidence band is narrow: with 12 runs, the model's mean at 270 minutes is known to a few tenths of a nanometre. The prediction band is about three times wider, because any single new measurement adds the ellipsometer's 0.5 nm of noise, which no amount of calibration removes. To judge one measured wafer, use the prediction band."""),
+**What to notice.** The confidence band is narrow: with 12 runs, the model's mean at 270 minutes is known to a few tenths of a nanometre. The prediction band is about three times wider, because any single new measurement adds the ellipsometer's 0.5 nm of noise, which no amount of calibration removes. To judge one measured wafer, use the prediction band.
+
+**What the bands cover.** Both are approximate **pointwise** 95% intervals: each holds at one time, not for the whole curve at once. They assume that the Deal-Grove model is right for these runs, that the starting oxide is known and that σ is the only measurement noise. They do not cover everything that varies in a real furnace, such as differences from wafer to wafer or from run to run beyond the stated noise."""),
 md("""## Step 7: the bands over time, and extrapolation
 
 The cell draws both bands from 0 to 24 hours. The calibration runs cover 30 to 480 minutes."""),
@@ -249,7 +251,7 @@ else:
     print("measured wafers of your new run:", ", ".join(f"{v:.2f}" for v in mine["new"]["thickness_nm"]))"""),
 md("""## Step 10: check your work
 
-The cell below tests your `dg_tau()` and `dg_thickness()` on cases you cannot see, and checks that `fit_mine` is the fit of your own 12 calibration runs with the stated starting oxide and σ. If all pass, it prints your **verification value**: the thickness your calibrated model predicts for the new run of 270 minutes, in nm, computed with the course's reference functions. It should match the number Step 9 printed. Type it into Question 1 of the lab check.
+The cell below tests your `dg_tau()` and `dg_thickness()` on cases you cannot see, and checks that `fit_mine` is the fit of your own 12 calibration runs with the stated starting oxide and σ. If all pass, it prints your **verification value**: a code made from your KEY and the thickness your calibrated model predicts for the new run of 270 minutes, in nm, computed with the course's reference functions. Only a passing check prints it, and it is **not** the number Step 9 printed. Type it into Question 1 of the lab check.
 
 If it says **NOT PASSED**, read the message: it tells you what to fix."""),
 code("""# The course's check code is in dt_m3_check.py, next to this notebook.
@@ -265,7 +267,7 @@ if passed:
     print("Type this number into Question 1 of the Module 3 Lab Check.")"""),
 md("""## What this means for the twin
 
-The twin now has a physics model of the furnace with stated uncertainty: a predicted thickness, a band for the mean and a band for a new measurement, and a stated range in which they hold. Inside that range, the new run's wafers fell inside the prediction band. Outside it, on thin oxides, the model failed by far more than its bands, and nothing in the calibration could have shown that. Module 4 adds a learned correction to this model; Module 5 keeps it in step with a furnace that drifts.
+The twin now has a physics model of the furnace with stated uncertainty: a predicted thickness, a band for the mean and a band for a new measurement, and a stated range in which they hold. For the example furnace, the new run's three wafers fell inside the prediction band. For your own furnace one of them may fall outside: a 95% band misses about one measurement in twenty, so a single wafer outside it does not, by itself, show that the model has failed. Outside the stated range, on thin oxides, the model failed by far more than its bands, and nothing in the calibration could have shown that. Module 4 adds a learned correction to this model; Module 5 keeps it in step with a furnace that drifts.
 
 **Claim only what the data support.** On simulated data, a good fit shows that the method recovers the course's simulator. It does not show that a real furnace follows Deal-Grove.
 

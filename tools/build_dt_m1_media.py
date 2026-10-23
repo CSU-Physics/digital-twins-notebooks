@@ -358,13 +358,13 @@ slide(f"""  <h2>Fitting τ to the first 10 minutes</h2>
     <div>
       <p style="font-size:25px"><code>fit_tau(t, y, T0, T_set)</code> finds the τ that brings the model closest to the readings (least squares, SciPy).</p>
       <p style="font-size:25px">Example stream: τ = {TAU:.2f} ± {TAU_SD:.2f} s.</p>
-      <p style="font-size:25px">The simulation's real τ is {N['tau_true']:.2f} s: within one standard error. A real furnace never tells you this.</p>
+      <p style="font-size:25px">The simulation's real τ is {N['tau_true']:.2f} s: here within one standard error. Other streams need not be; about a third land further away. A real furnace never tells you τ.</p>
     </div>
   </div>""")
 
 slide(f"""  <h2>The model alone falls behind</h2>
   <div>{dip_fig("model")}</div>
-  <p class="small" style="margin-top:2px">After about 15 minutes, something the model does not know about cools the zone. RMS error: {N['ol_early']:.2f} °C before 600 s, {N['ol_late']:.2f} °C from 600 s on, and up to {N['ol_max']:.1f} °C.</p>""")
+  <p class="small" style="margin-top:2px">After about 15 minutes, something the model does not know about cools the zone. RMS error (the square root of the mean squared reading − prediction): {N['ol_early']:.2f} °C before 600 s, {N['ol_late']:.2f} °C from 600 s on; the largest error is {N['ol_max']:.1f} °C.</p>""")
 
 slide(f"""  <h2>From model to twin: correct with each reading</h2>
   <div class="cols">

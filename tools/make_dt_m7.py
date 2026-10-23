@@ -11,7 +11,7 @@ import nbformat as nbf
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "content" / "m7"
-VERSION = "2026-10-24"
+VERSION = "2026-10-25"
 EXAMPLE_KEY = 2026
 META = {"kernelspec": {"name": "python", "display_name": "Python (Pyodide)", "language": "python"},
         "language_info": {"name": "python"}}
@@ -40,6 +40,8 @@ A test gives an error with an interval, not a single number, and the **tolerance
 - **insufficient evidence**: the interval contains the tolerance, so this test cannot tell. More test data would narrow the interval.
 
 "Insufficient evidence" is an honest result, not a failure of the method. It is better than a "meets" that the data do not support.
+
+The 95 % interval from `mae_ci()` is **approximate**. It treats the test units (runs or weeks) as independent, and neighbouring units can be correlated: when an error carries over from one unit to the next, the true uncertainty is larger than the computed interval, most of all after a change, when the errors move together for several units. Read a verdict close to the tolerance with that in mind.
 
 **Your task:** write `verdict(mae, half_width, tolerance)`. Return one of the three strings exactly as written here: `"meets"`, `"misses"` or `"insufficient evidence"`."""),
         code('''def verdict(mae, half_width, tolerance):
@@ -83,7 +85,7 @@ datasheet["risk_mitigation"] = None        # 5. one letter
 datasheet["low_confidence_action"] = None  # 6. one letter
 datasheet["note"] = ""                     # optional, not checked
 
-show_datasheet(datasheet, "{track}")'''),
+show_datasheet(datasheet, "{track}", results=globals().get("results"), tolerance=TOLERANCE, key=KEY, version="{VERSION}")'''),
         md(f"""## Step 11: check your work
 
 The cell below tests your functions on cases you cannot see, recomputes the validation results for your KEY with the course's reference functions, and compares your data sheet with them. If everything passes, it prints your **verification value**, a code made from your KEY and the three numbers of your data sheet. Type it into Question 1 of the **{quiz_name}**.
@@ -165,7 +167,7 @@ The test plan is fixed before any test runs:
 |---|---|---|
 | held-out | production runs 1 to 60 of the drift scenario, each predicted before it is measured | mean absolute error (MAE) at most 0.5 nm |
 | baseline | the calibrated Deal-Grove model alone, on the same runs | (for comparison) |
-| challenging | runs 31 to 60 of the failing-thermocouple scenario | MAE at most 0.5 nm |
+| challenging | runs 31 to 60 of the failing-thermocouple scenario, a fixed window across the failure, which starts between runs 25 and 35 | MAE at most 0.5 nm |
 
 Steps 1 to 8 use the **course example furnace (KEY {K})**, so you can compare your numbers with the Module 7 page. Step 9 repeats the tests on your own furnace, with the KEY from Question 1 of the **{quiz}**. All data are **simulated**. Run each code cell with **Shift + Enter**, in order."""),
         md("""## Step 0: start Python
@@ -255,9 +257,11 @@ for i, ok in enumerate((ok1, ok2, ok3, ok4), 1):
 
 Now the twin runs production: 60 runs of the **drift** scenario of Module 5, which it has never seen. Before each run it recommends the oxidation time and predicts the monitor wafer; after the run the measurement updates the offset estimate. Each run is predicted **before** its measurement is used, so every error is an honest out-of-sample error, even though the twin keeps learning. One run has no measurement and adds no error.
 
-The MAE is a mean over 59 runs, and those runs are a sample: `mae_ci()` gives the half-width of its 95 % interval, t(0.975, n − 1) × s / √n, as in Module 6."""),
+The MAE is a mean over 59 runs, and those runs are a sample: `mae_ci()` gives the half-width of its 95 % interval, t(0.975, n − 1) × s / √n, as in Module 6. The interval is approximate: it treats the runs as independent, but the offset estimate carries part of each run's error into the next runs, so neighbouring errors can be correlated, most of all while the twin adapts after a change.
+
+In the plot, the shaded band shows the size of the tolerance, for scale. The verdict compares the MAE of the whole test window, printed above the lower panel with its interval, with the tolerance: a single run outside the band does not fail the twin, and an MAE within the tolerance does not make every run acceptable."""),
         code('''log_drift = run_twin(EXAMPLE_KEY, "drift", predict_next, offset_observation)
-plot_log(log_drift, title=f"Process twin, example furnace (KEY {EXAMPLE_KEY}), drift scenario")
+plot_log(log_drift, title=f"Process twin, example furnace (KEY {EXAMPLE_KEY}), drift scenario", window=HELDOUT_RUNS, window_name="held-out")
 held = runs_between(log_drift, HELDOUT_RUNS)
 h_mae, h_hw, h_n = mae_ci(held["error_nm"])
 print(f"held-out: MAE {h_mae:.3f} nm, 95 % interval +/- {h_hw:.3f} nm, over {h_n} measured runs (tolerance {TOLERANCE} nm)")'''),
@@ -273,9 +277,9 @@ print(f"twin:                        MAE {h_mae:.3f} nm, +/- {h_hw:.3f} nm")
 print(f"the twin's error is {h_mae / b_mae:.0%} of the baseline's")'''),
         md("""## Step 8: the challenging condition
 
-Every validation needs one condition that is harder than normal production. Here it is the **failing thermocouple** of Module 5: from a run between 25 and 35 its bias grows several times faster. The offset estimate was tuned for slow drift (Q = 0.01 nm² per run), so it now lags behind. The test uses runs 31 to 60 of the failing scenario, after the failure has begun. The challenge is built in on purpose, and the notebook says so: a twin is only trusted where it has been tested."""),
+Every validation needs one condition that is harder than normal production. Here it is the **failing thermocouple** of Module 5: from a run between 25 and 35 its bias grows several times faster. The offset estimate was tuned for slow drift (Q = 0.01 nm² per run), so it now lags behind. The test uses a fixed window, runs 31 to 60 of the failing scenario. The failure starts between run 25 and run 35, depending on the furnace, so for some furnaces the first runs of the window come before the failure: the window spans the transition and the operation after it. The challenge is built in on purpose, and the notebook says so: a twin is only trusted where it has been tested."""),
         code('''log_fail = run_twin(EXAMPLE_KEY, "failing", predict_next, offset_observation)
-plot_log(log_fail, title=f"Process twin, example furnace (KEY {EXAMPLE_KEY}), failing thermocouple")
+plot_log(log_fail, title=f"Process twin, example furnace (KEY {EXAMPLE_KEY}), failing thermocouple", window=CHALLENGING_RUNS, window_name="challenging")
 chal = runs_between(log_fail, CHALLENGING_RUNS)
 c_mae, c_hw, c_n = mae_ci(chal["error_nm"])
 print(f"challenging: MAE {c_mae:.3f} nm, +/- {c_hw:.3f} nm, over {c_n} runs:", verdict(c_mae, c_hw, TOLERANCE))'''),
@@ -297,7 +301,7 @@ else:
     for name, (m, hw, n) in results.items():
         v = verdict(m, hw, TOLERANCE) if name != "baseline" else "(for comparison)"
         print(f"  {name:12s} MAE {m:.3f} nm   +/- {hw:.3f}   n = {n:2d}   {v}")
-    plot_log(my_drift, title=f"Your furnace (KEY {KEY}), drift scenario")'''),
+    plot_log(my_drift, title=f"Your furnace (KEY {KEY}), drift scenario", window=HELDOUT_RUNS, window_name="held-out")'''),
     ] + datasheet_cells("process", quiz) + [
         code(f'''# The course's check code is in dt_m7_check.py, next to this notebook.
 # It is kept out of the notebook so that the course's reference solutions are not on screen.
@@ -407,7 +411,7 @@ print(np.round(run41["thickness_nm"].to_numpy(), 2), "  (what the five wafers me
 print(offset_observation(55.40, 55.10), "  (should be 0.3, up to rounding)")'''),
         md("## Step 4: verify the connected twin\n\n" + verification_intro() + """
 
-Four tests: (1) your prediction minus the physics prediction is exactly the learned correction; (2) if the sampled wafer measures the prediction plus 0.37 nm, the observed offset is 0.37 nm; (3) on the training runs the residual, measured minus prediction, averages to zero, as a ridge fit with an intercept must; (4) there is one prediction per wafer."""),
+Four tests: (1) your prediction minus the physics prediction is exactly the learned correction; (2) if the sampled wafer measures the hybrid-model prediction before offset correction (`vm`, without `d_hat`) plus 0.37 nm, the observed offset is 0.37 nm; (3) on the training runs the residual, measured minus prediction, averages to zero, as a ridge fit with an intercept must; (4) there is one prediction per wafer."""),
         code('''vm_train = np.asarray(vm_predict(model, train), dtype=float)
 ok1 = np.allclose(vm_train - physics_prediction(train), model.predict(train[FEATURES]))
 ok2 = abs(offset_observation(float(vm_train[0]) + 0.37, float(vm_train[0])) - 0.37) < 1e-9
@@ -419,7 +423,9 @@ for i, ok in enumerate((ok1, ok2, ok3, ok4), 1):
 
 Now the twin runs production: runs 41 to 100, which it has never seen. For each run it predicts all five wafers, then the sampled wafer is measured and updates the offset estimate for the next run. Each run is predicted **before** its sampled wafer is used, so every error is an honest out-of-sample error.
 
-The five wafers of a run share the run's effects, so they are not five independent tests. The test unit is the **run**: `per_run_mae()` gives the mean absolute error of each run's five wafers, and `mae_ci()` the MAE over the runs with the half-width of its 95 % interval, t(0.975, n − 1) × s / √n, as in Module 6."""),
+The five wafers of a run share the run's effects, so they are not five independent tests. The test unit is the **run**: `per_run_mae()` gives the mean absolute error of each run's five wafers, and `mae_ci()` the MAE over the runs with the half-width of its 95 % interval, t(0.975, n − 1) × s / √n, as in Module 6. Even the runs are not fully independent: the offset estimate carries part of each run's error into the next runs, most of all while it catches up after a change, so the interval is approximate.
+
+In the lower panel of the plot, each run's mean absolute error is drawn next to the tolerance line, and each test window's MAE is the thick horizontal line with its interval shaded. The verdict compares the window's MAE and its interval with the tolerance: a single run above the line does not fail the twin, and an MAE within the tolerance does not make every run acceptable."""),
         code('''log = run_twin(EXAMPLE_KEY, vm_predict, offset_observation, model=model)
 plot_log(log, title=f"Metrology twin, example furnace (KEY {EXAMPLE_KEY})")
 h_mae, h_hw, h_n = mae_ci(per_run_mae(log, "error_nm", HELDOUT_RUNS))
@@ -487,18 +493,18 @@ This is the **toolset twin** track of the capstone. You join prepared components
 - the **SimPy line model** of Module 6, whose furnace tubes drift and are calibrated by the predictive rule of Modules 5 and 6;
 - the fab's **lot log**: when each lot was released, and when it started and finished at each tool group.
 
-The twin forecasts the **weekly mean cycle time** of the line, for capacity planning. You estimate its settings from the log (the connection between the log and the model), write one function that turns a test result into a verdict, and fill in the **twin data sheet**: what the twin is for, what it uses, how it performed, where it must not be used, one risk, and what to do when confidence is low.
+The twin computes the **weekly mean cycle time** of the line from the week's lot releases, for capacity planning. This capstone validates it **retrospectively**: the twin replays past weeks with the release times the fab actually used (a trace-driven replay), so the test shows how well the line model reproduces the cycle time when the releases are known. It does not show how well the twin would forecast future weeks whose releases are not yet known: that test would drive the twin with the release plan available at the forecast date, and calibrate it only on data available by then. You estimate its settings from the log (the connection between the log and the model), write one function that turns a test result into a verdict, and fill in the **twin data sheet**: what the twin is for, what it uses, how it performed, where it must not be used, one risk, and what to do when confidence is low.
 
 The "fab" here is the same simulator with settings of its own, which the twin has to estimate from the log, and with one thing the twin does not model. The test plan is fixed before any test runs:
 
 | test | data | pass when |
 |---|---|---|
 | calibration | weeks 1 to 6 of the log | (estimates only) |
-| held-out | weeks 7 to 30: the twin's forecast of each week against the log | mean absolute weekly error (MAE) at most 1.0 h |
+| held-out | weeks 7 to 30: the twin's replay of each week, with the week's actual releases, against the log | mean absolute weekly error (MAE) at most 1.0 h |
 | baseline | the mean weekly cycle time of weeks 1 to 6, on the same weeks | (for comparison) |
 | challenging | weeks 31 to 40, when the lithography tool breaks down now and then | MAE at most 1.0 h |
 
-Steps 1 to 8 use the **course example line (KEY {K})**, so you can compare your numbers with the Module 7 page. Step 9 repeats the tests on your own line, with the KEY from Question 1 of the **{quiz}**. All data are **simulated**. The twin runs 20 replications for every forecast, so Steps 5, 8 and 9 take a while (up to about a minute each in the browser). Run each code cell with **Shift + Enter**, in order."""),
+Steps 1 to 8 use the **course example line (KEY {K})**, so you can compare your numbers with the Module 7 page. Step 9 repeats the tests on your own line, with the KEY from Question 1 of the **{quiz}**. All data are **simulated**. The twin runs 20 replications for every test, so Steps 5, 8 and 9 take a while (up to about a minute each in the browser). Run each code cell with **Shift + Enter**, in order."""),
         md("""## Step 0: start Python
 
 The first time, Python can take up to a minute to start. The cell prints the versions of the libraries and of the course files next to this notebook, including SimPy, which `line.py` imports from the wheel file next to it."""),
@@ -527,7 +533,7 @@ A twin in a fab is rarely written from scratch: it is assembled from models and 
 | `weekly_cycle_time(log, weeks)` | Module 6 | the mean cycle time of the lots that leave in each week |
 | `mae_ci(errors)` | Module 6 | the mean absolute error and the half-width of its 95 % interval |
 
-The twin is **trace-driven**: it does not invent its own lot releases, it releases its lots at the times the fab released them. Its process times, tube drift and calibrations are its own and random, so 20 replications give its forecast for a week. That way a busy week in the fab is a busy week in the twin, and the comparison tests the model, not the luck of the releases (Law 2015 recommends this for validating a simulation against a real system).
+The twin is **trace-driven**: it does not invent its own lot releases, it releases its lots at the times the fab released them. Its process times, tube drift and calibrations are its own and random, so 20 replications give its result for a week. That way a busy week in the fab is a busy week in the twin, and the comparison tests the model, not the luck of the releases (Law 2015 recommends this for validating a simulation against a real system). The price is that a replay is conditional on the releases that actually happened: it is a retrospective test of the line model, not a forecast.
 
 What is missing is the **connection** between the log and the model: the twin's release rate and process times have to be estimated from the log. That is your part, in Step 3."""),
         md("""## Step 2: the fab's log
@@ -551,7 +557,9 @@ The twin needs seven numbers, estimated from the lots released in the calibratio
 
 Lots still in the line have NaN for the steps they have not finished: drop them from each process time with `.dropna()` before taking the mean and the standard deviation.
 
-**Your task:** write `twin_estimates(calib, hours)`. `calib` is the part of the log released in the calibration window and `hours` the window's length. Return a dict with the seven keys above."""),
+**Your task:** write `twin_estimates(calib, hours)`. `calib` is the part of the log released in the calibration window and `hours` the window's length. Return a dict with the seven keys above.
+
+Two notes on what this calibration uses. The log is read after week 40, so the lots released late in week 6 bring the steps they finish early in week 7 (7 lots for the example line); a forecast made at the end of week 6 could not use those steps. And the trace-driven replay takes its arrivals from the log's release times, so the release rate you estimate does not change the replay: it records the release rate at which the twin was validated, which is what a planner would need, with a release plan, to run the twin ahead."""),
         code('''def twin_estimates(calib, hours):
     """The twin's release rate (lots/h), mean process times (h) and their coefficients of variation, from the lots released
     in the calibration window."""
@@ -580,17 +588,19 @@ for i, ok in enumerate((ok1, ok2, ok3, ok4), 1):
     print(f"verification test {i}:", "ok" if ok else "FAILED: check Step 3")'''),
         md("""## Step 5: validate on held-out weeks
 
-Now the twin forecasts weeks 7 to 30, which played no part in the calibration. For each week, `replay()` runs 20 replications of the trace-driven twin and averages their weekly mean cycle time; `weekly_cycle_time()` gives what the log measured. The test unit is the **week**: `mae_ci()` gives the mean absolute weekly error with the half-width of its 95 % interval, t(0.975, n − 1) × s / √n, as in Module 6. This cell takes a while."""),
+Now the twin replays weeks 7 to 30, which played no part in the calibration. For each week, `replay()` runs 20 replications of the trace-driven twin and averages their weekly mean cycle time; `weekly_cycle_time()` gives what the log measured. The test unit is the **week**: `mae_ci()` gives the mean absolute weekly error with the half-width of its 95 % interval, t(0.975, n − 1) × s / √n, as in Module 6. The interval is approximate: it treats the weeks as independent, but lots still in the line at the end of a week carry its congestion into the next, so neighbouring weeks can be correlated.
+
+In the plot, the shaded band shows the size of the tolerance, for scale. The verdict compares the MAE of all the weeks, printed above the lower panel with its interval, with the tolerance: a single week outside the band does not fail the twin, and an MAE within the tolerance does not make every week acceptable. This cell takes a while."""),
         code('''observed = weekly_cycle_time(log, HELDOUT_WEEKS)
 twin = replay(cfg, EXAMPLE_KEY, HELDOUT_WEEKS)
 baseline = float(weekly_cycle_time(log, CAL_WEEKS).mean())
-plot_weeks(observed, twin, baseline, title=f"Toolset twin, example line (KEY {EXAMPLE_KEY}), held-out weeks")
+plot_weeks(observed, twin, baseline, title=f"Toolset twin, example line (KEY {EXAMPLE_KEY}), held-out weeks", window_name="held-out")
 h_mae, h_hw, h_n = mae_ci(observed - twin)
 print(f"held-out: MAE {h_mae:.3f} h, 95 % interval +/- {h_hw:.3f} h, over {h_n} weeks (tolerance {TOLERANCE} h)")'''),
     ] + verdict_cells(1.0, "h", "h_mae, h_hw") + [
         md("""## Step 7: compare with the baseline
 
-A twin should beat the simplest thing that could work. The **baseline** here forecasts every week as the mean weekly cycle time of the six calibration weeks: what a planner could do with the log alone and no model.
+A twin should beat the simplest thing that could work. The **baseline** here predicts every week as the mean weekly cycle time of the six calibration weeks: what a planner could do with the log alone and no model.
 
 If the twin did not beat its baseline, that would be a valid finding too: the simpler method would be enough."""),
         code('''b_mae, b_hw, b_n = mae_ci(observed - baseline)
@@ -602,7 +612,7 @@ print(f"the twin's error is {h_mae / b_mae:.0%} of the baseline's")'''),
 Every validation needs one condition that is harder than normal operation. Here it is weeks 31 to 40, when the lithography tool, the bottleneck of Module 6, breaks down now and then and is repaired in a few hours. The twin has no breakdown model: nothing in the calibration weeks showed one. The challenge is built in on purpose, and the notebook says so: a twin is only trusted where it has been tested. This cell takes a while."""),
         code('''obs_c = weekly_cycle_time(log, CHALLENGING_WEEKS)
 twin_c = replay(cfg, EXAMPLE_KEY, CHALLENGING_WEEKS)
-plot_weeks(obs_c, twin_c, baseline, title=f"Toolset twin, example line (KEY {EXAMPLE_KEY}), weeks with breakdowns")
+plot_weeks(obs_c, twin_c, baseline, title=f"Toolset twin, example line (KEY {EXAMPLE_KEY}), weeks with breakdowns", window_name="challenging")
 c_mae, c_hw, c_n = mae_ci(obs_c - twin_c)
 print(f"challenging: MAE {c_mae:.3f} h, +/- {c_hw:.3f} h, over {c_n} weeks:", verdict(c_mae, c_hw, TOLERANCE))'''),
         md(f"""## Step 9: your own line
@@ -626,7 +636,7 @@ else:
     for name, (m, hw, n) in results.items():
         v = verdict(m, hw, TOLERANCE) if name != "baseline" else "(for comparison)"
         print(f"  {name:12s} MAE {m:.3f} h   +/- {hw:.3f}   n = {n:2d}   {v}")
-    plot_weeks(my_obs, my_twin, my_base, title=f"Your line (KEY {KEY}), held-out weeks")'''),
+    plot_weeks(my_obs, my_twin, my_base, title=f"Your line (KEY {KEY}), held-out weeks", window_name="held-out")'''),
     ] + datasheet_cells("toolset", quiz) + [
         code(f'''# The course's check code is in dt_m7_check.py, next to this notebook.
 # It is kept out of the notebook so that the course's reference solutions are not on screen.
@@ -639,7 +649,7 @@ if passed:
     print()
     print(f"Verification value for KEY = {{KEY}}: {{value:.3f}}")
     print("Type this number into Question 1 of the {quiz}.")'''),
-        closing_cell("""**What the toolset twin showed.** Calibrated from six weeks of the log and driven by each week's real releases, the twin forecasts the weekly cycle time to within its tolerance in normal weeks, better than the recent average. When the bottleneck starts to break down, the twin is wrong by hours, because breakdowns are not in it: that condition goes on the data sheet, and the twin needs a breakdown model, validated on new weeks, before it is used for those weeks."""),
+        closing_cell("""**What the toolset twin showed.** Calibrated from six weeks of the log and driven by each week's actual releases, the twin's replay reproduces the weekly cycle time to within its tolerance in normal weeks, better than the recent average. When the bottleneck starts to break down, the twin is wrong by hours, because breakdowns are not in it: that condition goes on the data sheet, and the twin needs a breakdown model, validated on new weeks, before it is used for those weeks. The test was retrospective, with the releases known. Before the twin plans future weeks from a release plan, it needs a prospective test of its own: the planned releases will differ from the actual ones, and the calibration may use only the data available at the forecast date."""),
     ]
     return cells
 

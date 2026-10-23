@@ -380,7 +380,7 @@ def s059_fig():
     Yf = lambda v: y0 - v / 0.25 * (y0 - y1)
     names = ["Jul", "Aug", "Sep", "Oct"]
     X_ = lambda k: x0 + (x1 - x0) * (k + 0.5) / 4
-    s = [f'<svg width="{w}" height="{h_}" viewBox="0 0 {w} {h_}" role="img" aria-label="Monthly mean of s059 and monthly share of fails both fall from July to October">']
+    s = [f'<svg width="{w}" height="{h_}" viewBox="0 0 {w} {h_}" role="img" aria-label="Monthly mean of s059 and monthly share of fails both fall from July to September; the share of fails rises again in October">']
     for v in (0, 4, 8, 12):
         s.append(f'<line x1="{x0}" y1="{Y_(v):.1f}" x2="{x1}" y2="{Y_(v):.1f}" stroke="{LINE}"/>')
         s.append(txt(x0 - 10, Y_(v) + 7, v, 19, MAROON, "end"))
@@ -482,7 +482,7 @@ slide(f"""  <h2>Joining the records by ID</h2>
 
 slide(f"""  <h2>Late and missing results</h2>
   <div>{timeline_fig()}</div>
-  <p class="small" style="margin-top:0">Simulated records, key 2026. The twin can use a result only if it arrives within {ON_TIME_H:.0f} h, before the next lots are dispatched. Run {B['late']} arrived after {B['late_h']:.0f} h; run {B['missing']} has none.</p>""")
+  <p class="small" style="margin-top:0">Simulated records, key 2026. The twin's update for the next shift's recipe plan is fixed {ON_TIME_H:.0f} h after each run, so only a result that arrives within {ON_TIME_H:.0f} h can feed it. Run {B['late']} arrived after {B['late_h']:.0f} h; run {B['missing']} has none.</p>""")
 
 slide(f"""  <div class="kicker">Pause and predict</div>
   <h2>Left join or inner join?</h2>
@@ -538,7 +538,7 @@ slide(f"""  <h2>Leakage: the ranking saw the test labels</h2>
     <div style="flex:0 0 620px">{auc_fig()}</div>
     <div>
       <p style="font-size:23px">Top 20 signals by S2N, same classifier, same test records. Only the ranking differs.</p>
-      <p style="font-size:23px">Ranked on training records: AUC {A['honest']:.2f}, {A['h_found']} of {A['fte']} fails found. Ranked on all records: AUC {A['leaky']:.2f}, {A['l_found']} found.</p>
+      <p style="font-size:23px">Ranked on training records: AUC {A['honest']:.2f}, {A['h_found']} of {A['fte']} fails found. Ranked on all records: AUC {A['leaky']:.2f}, {A['l_found']} found, an invalid estimate, not evidence of a better model.</p>
       <p style="font-size:23px">With shuffled labels (no real link), means over 5 shuffles: {A['sh_h']:.2f} honest, {A['sh_l']:.2f} leaky.</p>
     </div>
   </div>""")
@@ -554,14 +554,14 @@ slide(f"""  <h2>Associated is not shown to be a cause</h2>
     <div style="flex:0 0 620px">{s059_fig()}</div>
     <div>
       <p style="font-size:23px">{A['top']} ranks first in the training records (S2N {S059_TR:.3f}), and almost nothing in the test records ({S059_TE:.3f}).</p>
-      <p style="font-size:23px">It falls month by month, and so does the share of fails: something that changed over time moved both.</p>
+      <p style="font-size:23px">Both fall from July to September (fails rise again in October): consistent with temporal confounding, something that changed over time and moved both.</p>
       <p style="font-size:23px">A screened signal is a lead for an engineer to investigate, not a cause. SECOM does not even say what it measures.</p>
     </div>
   </div>""")
 
 slide("""  <h2>Integrity and security of connected tools</h2>
   <div class="cols">
-    <div class="card"><h3>NIST IR 8356 (2025)</h3><p style="font-size:20px">Risks: many low-cost sensors that may give untrustworthy data or have vulnerabilities; all data about an object in one place; displays that can be manipulated; remote control while the display hides the change. Measures include hashes and error detection to verify data, encryption, access governance and a zero-trust approach.</p></div>
+    <div class="card"><h3>NIST IR 8356 (2025)</h3><p style="font-size:20px">Risks: many low-cost sensors that may give untrustworthy data or have vulnerabilities; all data about an object in one place; displays that can be manipulated; remote control while the display hides the change. Measures include integrity checks, encryption, access governance and a zero-trust approach. A plain hash or checksum catches accidental corruption; against deliberate changes the check must be authenticated, for example an HMAC, which uses a secret key with the hash.</p></div>
     <div class="card"><h3>In the fab</h3><p style="font-size:20px">SEMI E187 (2022) sets a minimum cybersecurity baseline for fab equipment: operating system support, network security, endpoint protection, security monitoring. E188 covers malware-free equipment integration. SEMI cites a 2018 ransomware incident that paused a major foundry's production.</p></div>
   </div>
   <p class="small" style="margin-top:14px">Data ownership: equipment data are produced on a supplier's tool inside a fab. Who may read and use them is set by contracts and access policies, not by the data themselves.</p>""")

@@ -488,12 +488,13 @@ slide("""  <h2>Cross-validation, done properly</h2>
     <li>Split the training runs into five folds; fit on four, validate on the fifth; rotate; average the five errors.</li>
     <li><strong>Everything learned from data goes inside the fold:</strong> the scaler too. A pipeline makes that automatic: cross_val_score refits the whole pipeline on each training fold.</li>
     <li><strong>Keep whole runs together.</strong> Each fold here is a block of 8 consecutive runs, so no run is split and neighbouring runs stay together.</li>
+    <li>These folds stop leakage within runs, but they are <strong>not walk-forward</strong>: one fold trains on runs 9 to 40 and validates on runs 1 to 8. For a drifting tool, tune with expanding-window splits over whole runs.</li>
     <li>Choose the α with the smallest cross-validated error, then refit on all training runs.</li>
   </ul>
   <p class="small" style="margin-top:12px">scikit-learn: Pipeline, StandardScaler, Ridge, GroupKFold, cross_val_score, GridSearchCV.</p>""")
 
 slide(f"""  <h2>Why the folds hold whole runs</h2>
-  {two(folds_fig(), [f"A flexible model (all products of the features up to degree 3) with almost no penalty.", f"Random wafer folds: {FLEX[1e-6][0]:.2f} nm. It has seen four wafers of each validation run, so it can look up the fifth.", f"Run-block folds: {FLEX[1e-6][1]:.2f} nm; the test runs agree: {FLEX[1e-6][2]:.2f} nm.", f"With run blocks, a larger penalty wins: α = 10 gives {FLEX[10.0][1]:.2f} nm."], size=22)}""")
+  {two(folds_fig(), [f"A flexible model (all products of the features up to degree 3) with almost no penalty.", f"Random wafer folds: {FLEX[1e-6][0]:.2f} nm. It has seen four wafers of each validation run, so it can look up the fifth.", f"Run-block folds: {FLEX[1e-6][1]:.2f} nm; the test runs agree: {FLEX[1e-6][2]:.2f} nm.", f"The lesson: random folds promise about {FLEX[1e-6][0]:.2f} nm for a model whose error on new runs is {FLEX[1e-6][2]:.2f} nm."], size=22)}""")
 
 slide(f"""  <h2>First, a baseline</h2>
   {two(baseline_fig(), ["Baseline: the mean thickness of all wafers measured in the 3 runs before this one.", "It uses only finished, measured runs: never the run itself.", f"Test RMSE: {S_TE['baseline']['rmse']:.2f} nm. It follows slow changes, but not each run's own oxidation time.", "A model that cannot beat it is not worth running; one that ties it is a valid finding."], size=22)}""")

@@ -10,7 +10,7 @@ import nbformat as nbf
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "content" / "m5"
 NAME = "DT-M5-lab-run-to-run.ipynb"
-VERSION = "2026-10-23"
+VERSION = "2026-10-25"
 META = {"kernelspec": {"name": "python", "display_name": "Python (Pyodide)", "language": "python"},
         "language_info": {"name": "python"}}
 
@@ -64,11 +64,13 @@ md("""## Step 1: the furnace, the twin and the offset d
 | `t_limits` | the oxidation times the recipe allows: 80 to 100 minutes |
 | `qual_time_min`, `qual_thickness_nm` | the **qualification run** (run 0): 90 minutes, and its monitor wafer's measured thickness |
 
-The twin predicts the thickness with `dg_thickness(t, B, BA, xi)`, the Deal-Grove solution you wrote in Module 3. The state this lab estimates is the **offset d**:
+The twin predicts the thickness with `dg_thickness(t, B, BA, xi)`, the Deal-Grove solution you wrote in Module 3. The state this lab estimates is the **offset d**: how much more oxide the furnace grows than the model predicts for the same recipe. Three symbols keep the ideas apart:
 
-**d = measured monitor-wafer thickness − the twin's prediction for that run's oxidation time**
+- **d**, the underlying offset between the furnace and the model, which nobody observes directly;
+- **y = measured monitor-wafer thickness − the twin's prediction for that run's oxidation time**, the observed residual: a noisy observation of d, y = d + noise;
+- **d̂**, the twin's estimate of d, made from the observations.
 
-The cell computes d for the qualification run, on the example furnace (key 2026). That value, **d_ref**, is the offset when the furnace was known to be correct."""),
+The cell computes the observed residual y for the qualification run, on the example furnace (key 2026). That value, **d_ref**, is the offset when the furnace was known to be correct."""),
 code("""setup = r2r_setup(2026)
 for name, value in setup.items():
     print(f"{name:18s} {value}")
@@ -127,7 +129,7 @@ From Module 3, Deal-Grove growth from an initial oxide xᵢ follows x² + A·x =
 
 **t = (x² − xᵢ² + A·(x − xᵢ)) / B**
 
-The recipe allows only times from 80 to 100 minutes, so the rule **clips** t to `t_limits`: a time below the lower limit becomes the lower limit, a time above the upper limit becomes the upper limit. A run whose time was clipped is **held at a limit**: the controller could not reach the target, and the run will be off target.
+The recipe allows only times from 80 to 100 minutes, so the rule **clips** t to `t_limits`: a time below the lower limit becomes the lower limit, a time above the upper limit becomes the upper limit. A run whose time was clipped is **held at a limit**: the oxidation time is capped at the limit (the lot itself is not put on hold), and the controller cannot apply the full correction it asks for. Estimation error and the run's own variation still affect the result, and a run somewhat away from the exact target is not automatically outside the product specification; persistent saturation together with growing thickness deviations calls for investigation.
 
 **Your task:** write `next_time(d_hat, target_nm, B, BA, xi_nm, t_limits)`. Compute x, then A = B / BA, then t, then clip t to `(t_limits[0], t_limits[1])`, and return it in minutes, without rounding."""),
 code("""def next_time(d_hat, target_nm, B, BA, xi_nm, t_limits):
@@ -243,7 +245,7 @@ md("""## Step 11: your task, the recalibration alarm `alarm_run()`
 
 A controller that compensates drift also **hides** it: the thickness chart in Step 7 looks healthy while the thermocouple drifts further every run. The drift is still visible in the estimate itself. The estimate has moved away from d_ref, the offset at qualification, by an amount that measures the drift in nanometres; at about 0.5 nm per degree, 2 nm is about 4 °C.
 
-The lab's rule: when **|d̂ − d_ref| > 2.0 nm for 3 runs in a row**, schedule a **temperature calibration** of the furnace (a profile run with a reference thermocouple). Requiring several runs in a row keeps one noisy run from raising the alarm. A calibration removes the bias, and d returns to d_ref.
+The lab's rule: when **|d̂ − d_ref| > 2.0 nm for 3 runs in a row**, schedule a **temperature calibration** of the furnace (a profile run with a reference thermocouple). Requiring several runs in a row reduces the alarm's sensitivity to short fluctuations, but it does not rule out false alarms: consecutive estimates share earlier observations, so one unusually large observation can keep the estimate above the limit for several runs. A run with no measurement keeps the estimate unchanged, and it counts toward the streak like any other run. A calibration removes the bias, and d returns to d_ref.
 
 **Your task:** write `alarm_run(offsets, limit, k)`. `offsets` is a sequence in run order, the first value for run 1: a list, a NumPy array or a pandas Series. Return the **run number** (1 for the first value) of the run that completes the first streak of k runs in a row with |offset| > limit. Return `None` if that never happens. A value exactly at the limit does not count, and a run back inside the limit resets the count to 0."""),
 code("""def alarm_run(offsets, limit, k):
@@ -260,7 +262,7 @@ for name in ["EWMA, lambda 0.2", "Kalman"]:
 md("""**What to notice.** In the drift scenario the alarm fires in the second half of the run sequence, while the thickness is still on target: the calibration can be planned, and the controller keeps the product right until then. Without the alarm, the first sign of trouble would come much later, when the oxidation time reaches its limit."""),
 md("""## Step 12: a failing thermocouple
 
-In the `"failing"` scenario, the same furnace's thermocouple starts to fail: from a run between 25 and 35, its bias grows several times faster. Everything else, the noise and the missing run included, is the same as in the drift scenario."""),
+In the `"failing"` scenario, the same furnace's thermocouple starts to fail: from a run between 25 and 35, its bias grows several times faster. Everything else, the noise and the missing run included, is the same as in the drift scenario. The simulation then continues **without any maintenance**, to show what would happen if nobody acted on the alarm."""),
 code("""fail_logs = {"fixed 90 min": closed_loop(2026, "fixed", scenario="failing"),
              "EWMA, lambda 0.2": closed_loop(2026, "ewma", next_time=next_time, ewma_update=ewma_update, scenario="failing"),
              "Kalman": closed_loop(2026, "kalman", next_time=next_time, kalman_update=kalman_update, scenario="failing")}
@@ -270,10 +272,10 @@ for name in ["EWMA, lambda 0.2", "Kalman"]:
     held_runs = log.loc[log["held"], "run"].tolist()
     print(f"{name}: alarm at run {alarm_run(log['d_hat_nm'] - d_ref, ALARM_LIMIT_NM, ALARM_RUNS)}, "
           f"first run held at a limit: {held_runs[0] if held_runs else None}")
-plot_runs(fail_logs, setup, title="Failing thermocouple, example furnace")"""),
+plot_runs(fail_logs, setup, title="Failing thermocouple, example furnace, continuing without maintenance")"""),
 md("""Write down the run at which the alarm fires for the **Kalman** controller, and the number of runs it holds at a limit: the lab check asks about them.
 
-**What to notice.** The controllers follow the faster drift for a while, until the oxidation time reaches the 100-minute limit. From then on they are **held at the limit**: the recipe cannot add more time, and the thickness falls below target run after run. Control cannot fix a failing sensor. The alarm fired about ten runs before the first held run: time to stop the furnace and call maintenance before product goes off target. Module 6 uses such early warnings to plan maintenance."""),
+**What to notice.** The controllers follow the faster drift for a while, until the oxidation time reaches the 100-minute limit. From then on they are **held at the limit**: the recipe cannot add more time, and with the drift still growing the thickness falls below target run after run. Control cannot fix a failing sensor. The alarm fired about ten runs before the first held run: time to stop the furnace and call maintenance before product goes off target. Module 6 uses such early warnings to plan maintenance."""),
 md("""## Step 13: your own furnace
 
 Open the **Module 5 Lab Check** in Canvas. Question 1 gives you a **KEY**, a whole number from 100 to 999. Type it below in place of `None` and run the cell. It runs the Kalman controller on **your furnace** in the drift scenario, with **your functions**, and prints the oxidation time it recommends for **run 61**, the next run after the 60 in the log."""),
@@ -293,7 +295,7 @@ else:
     print(f"recommended oxidation time for run 61: {t61:.3f} min")"""),
 md("""## Step 14: check your work
 
-The cell below tests your four functions on cases you cannot see. If all pass, it prints your **verification value**: the oxidation time, in minutes, that the Kalman controller recommends for run 61 of your furnace, computed with the course's reference functions. It should match the last number Step 13 printed. Type it into Question 1 of the lab check.
+The cell below tests your four functions on cases you cannot see. If all pass, it prints your **verification value**: a code made from your KEY and the oxidation time, in minutes, that the Kalman controller recommends for run 61 of your furnace, computed with the course's reference functions. Only a passing check prints it, and it is **not** the last number Step 13 printed. Type it into Question 1 of the lab check.
 
 If it says **NOT PASSED**, read the message: it tells you what to fix."""),
 code("""# The course's check code is in dt_m5_check.py, next to this notebook.

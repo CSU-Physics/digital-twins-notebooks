@@ -422,7 +422,7 @@ slide(f"""  <div class="kicker">Pause and predict</div>
   <h2>How wide is the prediction band?</h2>
   <p>A calibrated model gives se_mean = {SE_Q[0]:.2f} nm at some time, and one measurement has σ = {SE_Q[1]:.2f} nm.</p>
   <p><strong>Predict:</strong> the half-width of the 95% prediction band?</p>
-{reveal(f"se_pred = √({SE_Q[0]:.2f}² + {SE_Q[1]:.2f}²) = {SE_Q_PRED:.3f} nm, so the half-width is 1.96 × {SE_Q_PRED:.3f} = {1.96 * SE_Q_PRED:.2f} nm. Calibrating with more runs shrinks se_mean, but never below the measurement's own σ.")}""")
+{reveal(f"se_pred = √({SE_Q[0]:.2f}² + {SE_Q[1]:.2f}²) = {SE_Q_PRED:.3f} nm, so the half-width is 1.96 × {SE_Q_PRED:.3f} = {1.96 * SE_Q_PRED:.2f} nm. More calibration runs can reduce se_mean below σ; one new measurement still carries its own noise, so se_pred ≥ σ.")}""")
 
 slide(f"""  <h2>Extrapolation</h2>
   <div>{extrap_fig()}</div>

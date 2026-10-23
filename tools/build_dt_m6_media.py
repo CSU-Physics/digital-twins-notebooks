@@ -462,14 +462,14 @@ slide("""  <h2>By the end of this module you can</h2>
   <ul>
     <li>measure <strong>throughput, cycle time and work in progress</strong> at the same boundary, and check them with <strong>Little's law</strong>;</li>
     <li>explain why <strong>queues grow faster than load</strong>, and find the <strong>bottleneck</strong> of a line;</li>
-    <li>build a <strong>discrete-event simulation</strong> from lots, tools and queues, as in <strong>SimPy</strong>;</li>
+    <li>use and explain a supplied <strong>discrete-event simulation</strong> of lots, tools and queues in <strong>SimPy</strong>, and implement its measurement and maintenance functions;</li>
     <li>choose a <strong>warm-up</strong>, run <strong>replications</strong> and report a mean with a <strong>confidence interval</strong>;</li>
     <li>compare a <strong>what-if change</strong> by the mean and spread over replications, on the same random numbers;</li>
     <li>compare <strong>preventive</strong> and <strong>predictive</strong> maintenance using the Module 5 drift estimate, and say what a three-tool model leaves out.</li>
   </ul>
   <p class="small" style="margin-top:12px">Course outcome 6. The lab runs a supplied SimPy model of a furnace, lithography and etch line.</p>""")
 
-slide(f"""  <h2>In a line, a lot's time is mostly waiting</h2>
+slide(f"""  <h2>In a line, nearly half of a lot's time is waiting</h2>
   {two(where_fig(), [f"The lab's line: a lot needs {PROC:.1f} hours of processing in all, and spends {CT_M:.1f} hours in the line.", f"The other {WAIT:.1f} hours are spent in queues, and {float(STAGE.loc['litho', 'queue_h']):.1f} of them in front of <strong>lithography</strong>.", "A twin of one tool cannot see this: the wait depends on the other lots, the tools they use and how many tools there are.", "Simulated line, mean of 20 replications after the warm-up."], size=22)}""")
 
 slide(f"""  <h2>Five numbers, one boundary</h2>
@@ -576,16 +576,17 @@ slide(f"""  <h2>Maintenance with the Module 5 drift estimate</h2>
   <p class="small" style="margin-top:0">Blue: the tube's true drift; maroon: the Module 5 estimate from one monitor wafer per run; green: calibrations (8 hours out of service each). The same tube and the same noise under both rules; the thermocouple starts to fail at run 112.</p>""")
 
 slide(f"""  <h2>Three policies on the line, 20 replications each</h2>
-  <table style="font-size:20px;width:100%">
-    <tr><th>policy</th><th>calibrations</th><th>off-target lots</th><th>most in one replication</th><th>failing tube ran (median runs)</th><th>cycle time (h)</th></tr>
+  <table style="font-size:18px;width:100%">
+    <tr><th>policy</th><th>completed calibrations</th><th>off-target lots</th><th>most in one replication</th><th>failing tube ran (median runs)</th><th>cycle time (h)</th></tr>
     <tr><td>none</td><td>0</td><td style="white-space:nowrap">{POLICY['none']['off'][0]:.0f} ± {POLICY['none']['off'][1]:.0f} of {POLICY['none']['lots']:.0f}</td><td>{POLICY['none']['off_max']}</td><td>-</td><td style="white-space:nowrap">{POLICY['none']['ct'][0]:.2f} ± {POLICY['none']['ct'][1]:.2f}</td></tr>
     <tr><td>preventive, every 50 runs</td><td>{POLICY['preventive']['cal'][0]:.1f} ± {POLICY['preventive']['cal'][1]:.1f}</td><td>{POLICY['preventive']['off'][0]:.0f} ± {POLICY['preventive']['off'][1]:.0f}</td><td>{POLICY['preventive']['off_max']}</td><td>{POLICY['preventive']['fault_med']:.0f}</td><td style="white-space:nowrap">{POLICY['preventive']['ct'][0]:.2f} ± {POLICY['preventive']['ct'][1]:.2f}</td></tr>
-    <tr><td>predictive, 2.0 nm for 3 runs</td><td>{POLICY['predictive']['cal'][0]:.1f} ± {POLICY['predictive']['cal'][1]:.1f}</td><td>{POLICY['predictive']['off'][0]:.0f} ± {POLICY['predictive']['off'][1]:.0f}</td><td>{POLICY['predictive']['off_max']}</td><td>{POLICY['predictive']['fault_med']:.0f}</td><td style="white-space:nowrap">{POLICY['predictive']['ct'][0]:.2f} ± {POLICY['predictive']['ct'][1]:.2f}</td></tr>
+    <tr><td>predictive, 2.0 nm for 3 runs</td><td>{POLICY['predictive']['cal'][0]:.1f} ± {POLICY['predictive']['cal'][1]:.1f}</td><td>{(f"{POLICY['predictive']['off'][0]:.0f} ± {POLICY['predictive']['off'][1]:.0f}" if POLICY['predictive']['off_max'] else 'none observed')}</td><td>{POLICY['predictive']['off_max']}</td><td>{POLICY['predictive']['fault_med']:.0f}</td><td style="white-space:nowrap">{POLICY['predictive']['ct'][0]:.2f} ± {POLICY['predictive']['ct'][1]:.2f}</td></tr>
   </table>
-  <ul style="font-size:22px;margin-top:14px">
-    <li>The predictive rule makes fewer calibrations than the preventive rule and leaves no lot off target, because it calibrates each tube when its own estimate says so.</li>
-    <li>Calibrations cost capacity: with two tubes, one out for 8 hours leaves the other short, and cycle time rises from {POLICY['none']['ct'][0]:.1f} to {POLICY['predictive']['ct'][0]:.1f} h. Whether that pays depends on what an off-target lot costs, which the model does not know.</li>
-  </ul>""")
+  <ul style="font-size:20px;margin-top:10px">
+    <li>The predictive rule makes fewer calibrations than the preventive rule, because it calibrates each tube when its own estimate says so. No off-target lot was observed in these 20 replications, which does not establish zero risk.</li>
+    <li>Calibrations cost capacity: one tube out for 8 hours leaves the other short, and cycle time rises from {POLICY['none']['ct'][0]:.1f} to {POLICY['predictive']['ct'][0]:.1f} h. Whether that pays depends on the cost of an off-target lot, which the model does not know.</li>
+  </ul>
+  <p class="small" style="margin-top:6px">Model assumptions: compensation does not lengthen the furnace step, and a calibration also repairs a failing thermocouple.</p>""")
 
 slide("""  <h2>What a three-tool model leaves out</h2>
   <div class="cols">

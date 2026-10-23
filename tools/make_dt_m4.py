@@ -10,7 +10,7 @@ import nbformat as nbf
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "content" / "m4"
 NAME = "DT-M4-lab-virtual-metrology.ipynb"
-VERSION = "2026-10-22"
+VERSION = "2026-10-25"
 META = {"kernelspec": {"name": "python", "display_name": "Python (Pyodide)", "language": "python"},
         "language_info": {"name": "python"}}
 
@@ -92,7 +92,7 @@ plt.tight_layout(); plt.show()"""),
 md("""**What to notice.** Most of the spread comes from the oxidation time: about half a nanometre more oxide for each extra minute. Within one oxidation time, the zone temperatures and the moisture move the thickness by a nanometre or two. No single feature explains everything, which is why the twin needs a model."""),
 md("""## Step 2: split by time, before anything else
 
-A virtual-metrology model is trained on past runs and used on future ones, so the honest test is in **time order**: the first 40 runs (200 wafers) to train and tune the models, and runs 41 to 60 (100 wafers) as the **test set**. The test set is not used for any choice in Steps 3 to 9; it is used once, in Step 9, to compare the finished models.
+A virtual-metrology model is trained on past runs and used on future ones, so the honest test is in **time order**: the first 40 runs (200 wafers) to train and tune the models, and runs 41 to 60 (100 wafers) as the **test set**. The test set is not used for any choice: no penalty, feature or model is picked by its test error. Two earlier steps show test errors **only to illustrate**: Step 3 reports the baseline's, and Step 6 shows how far the flexible model's validation scores are from its test error. Those numbers must not guide any later choice. Step 9 is the final comparison of the finished models.
 
 Two more rules from the reading:
 
@@ -173,7 +173,7 @@ A **flexible model** makes the point: all products of the seven features up to d
 - **random wafer folds** (`KFold` with shuffling): the five wafers of a run are spread over the folds, so the model is validated on wafers of runs it was trained on;
 - **run-block folds**, as in Step 5: every validation wafer comes from runs the model has not seen.
 
-It then fits each version on the 40 training runs and scores it on the test runs, which here, for once, only serve to show the effect."""),
+It then fits each version on the 40 training runs and scores it on the test runs. Here the test errors only serve to show the effect: they are not used to choose anything."""),
 code("""random_folds = KFold(n_splits=5, shuffle=True, random_state=0)
 rows = []
 with warnings.catch_warnings():
@@ -186,8 +186,10 @@ with warnings.catch_warnings():
                      "test runs": scores(y_test, flex.fit(X_train, y_train).predict(X_test))["rmse"]})
 flex_table = pd.DataFrame(rows)
 print("RMSE (nm) of the flexible model:")
-print(flex_table.round({"random wafer folds": 3, "run-block folds": 3, "test runs": 3}).to_string(index=False, formatters={"alpha": lambda a: f"{a:g}"}))"""),
-md("""**What to notice.** With random wafer folds, the smallest penalty looks best, with an error near the measurement noise: the model has learned each run's thickness from the other wafers of the same run. The run-block folds show what happens on runs it has not seen: the same model is far worse, and a larger penalty is needed. The test runs agree with the run-block folds. A random split would have chosen the wrong model, and reported an error it does not reach."""),
+print(flex_table.round({"random wafer folds": 3, "run-block folds": 3, "test runs": 3}).to_string(index=False, formatters={"alpha": lambda a: f"{a:g}"}))
+best = {col: flex_table.loc[flex_table[col].idxmin(), "alpha"] for col in ["random wafer folds", "run-block folds"]}
+print(f"smallest error with random wafer folds: alpha = {best['random wafer folds']:g}; with run-block folds: alpha = {best['run-block folds']:g}")"""),
+md("""**What to notice.** With random wafer folds every penalty scores about the same, close to the measurement noise, even the nearly unpenalized model (α = 10⁻⁶): the model has learned each run's thickness from the other wafers of the same run. The run-block folds show what happens on runs the model has not seen: for that nearly unpenalized model the error is about three times larger, and the test runs agree. So random wafer folds **understate** the error of a flexible model on new runs. The last line shows which penalty each kind of fold would choose; with scores this close, that choice is not the point. The point is that random wafer folds promise an error the model does not reach on new runs."""),
 md("""## Step 7: the physics model alone
 
 `physics_prediction(table)` is the Module 3 Deal-Grove model with the **textbook** constants, evaluated at each run's center-zone reading and oxidation time, from the native oxide (1.5 nm). It knows nothing about this furnace: not its own rate constants, not the extra growth of the thin-oxide regime (the wafers start bare), not the moisture or the boat position.
@@ -231,7 +233,7 @@ alpha_hybrid = min(cv_hybrid, key=cv_hybrid.get)
 print(f"chosen alpha for the hybrid: {alpha_hybrid}")"""),
 md("""## Step 9: compare the models on the test runs
 
-Now, once, the test runs: the 100 wafers of runs 41 to 60, which no choice so far has used. The table gives each model's RMSE, mean absolute error, largest error and mean error (measured minus predicted)."""),
+Now the final comparison on the test runs: the 100 wafers of runs 41 to 60. No choice so far has used them; Steps 3 and 6 looked at test errors only to illustrate. The table gives each model's RMSE, mean absolute error, largest error and mean error (measured minus predicted)."""),
 code("""pred_test = {
     "baseline": base_test,
     "physics alone": phys_test,
@@ -330,7 +332,7 @@ else:
     print(f"slot {VM_PENDING_SLOT} prediction: {pred_pending[list(m_pending['slot']).index(VM_PENDING_SLOT)]:.3f} nm")"""),
 md("""## Step 13: check your work
 
-The cell below tests your four functions on cases you cannot see. If all pass, it prints your **verification value**: the hybrid model's prediction for the slot-65 wafer of your pending run, in nm, computed with the course's reference functions. It should match the last number Step 12 printed. Type it into Question 1 of the lab check.
+The cell below tests your four functions on cases you cannot see. If all pass, it prints your **verification value**: a code made from your KEY and the hybrid model's prediction for the slot-65 wafer of your pending run, in nm, computed with the course's reference functions. Only a passing check prints it, and it is **not** the last number Step 12 printed. Type it into Question 1 of the lab check.
 
 If it says **NOT PASSED**, read the message: it tells you what to fix."""),
 code("""# The course's check code is in dt_m4_check.py, next to this notebook.
