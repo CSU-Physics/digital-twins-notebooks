@@ -6,14 +6,14 @@ SECOM: McCann, M. and Johnston, A. (2008), UCI Machine Learning Repository, http
 load_secom()     reads the two data files next to this module (data/secom.data.gz and data/secom_labels.data).
 time_split()     splits the records by time: the earliest 70% for training, the latest 30% for testing.
 evaluate()       fits a simple classifier on chosen signals of the training records and scores it on the test records.
-screening_pipeline()  the same classifier with the signal ranking inside a scikit-learn pipeline.
+screening_pipeline()  the same steps as evaluate(), with the screening filter and the ranking inside a scikit-learn pipeline.
 """
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 DATA = Path(__file__).resolve().parent / "data"
 TRAIN_FRACTION = 0.7
@@ -75,15 +75,39 @@ def evaluate(X_train, y_train, X_test, y_test, columns):
     return _scores(model, X_test[columns], y_test)
 
 
-def screening_pipeline(score_function, k=20):
-    """A scikit-learn pipeline that fills in missing values, scales, keeps the k signals with the highest
-    score_function(X, y) and fits the classifier: every step learns from the rows it is fitted on, and only those.
-    score_function takes a DataFrame of signals and a Series of labels and returns one score per column."""
-    from sklearn.feature_selection import SelectKBest
+def screening_pipeline(keep_function, score_function, k=20):
+    """A scikit-learn pipeline with the same steps, in the same order, as Steps 5 to 7 of the lab:
+      1. keep_function(X) chooses the columns to keep (the missing-value and near-constant filter);
+      2. score_function(X, y) ranks the kept columns, on the values as recorded (missing values skipped), and the k best stay;
+      3. missing values are filled in with the median, the signals are scaled, and the balanced logistic regression is fitted.
+    Every step learns from the rows the pipeline is fitted on, and only those, so cross-validation repeats the filter
+    and the ranking inside every fold. keep_function returns a list of column names; score_function returns one score per column."""
+    from sklearn.base import BaseEstimator, TransformerMixin
     steps, make_pipeline = _classifier()
 
-    def score(A, b):
-        A = pd.DataFrame(A)
-        return np.asarray(score_function(A, pd.Series(np.asarray(b), index=A.index)), dtype=float)
+    class KeepColumns(BaseEstimator, TransformerMixin):
+        def __init__(self, keep_function=None):
+            self.keep_function = keep_function
 
-    return make_pipeline(steps[0], steps[1], SelectKBest(score, k=k), steps[2])
+        def fit(self, X, y=None):
+            self.columns_ = list(self.keep_function(pd.DataFrame(X)))
+            return self
+
+        def transform(self, X):
+            return pd.DataFrame(X)[self.columns_]
+
+    class TopScores(BaseEstimator, TransformerMixin):
+        def __init__(self, score_function=None, k=20):
+            self.score_function = score_function
+            self.k = k
+
+        def fit(self, X, y):
+            X = pd.DataFrame(X)
+            s = pd.Series(np.asarray(self.score_function(X, pd.Series(np.asarray(y), index=X.index)), dtype=float), index=X.columns)
+            self.columns_ = list(s.sort_values(ascending=False).index[:self.k])
+            return self
+
+        def transform(self, X):
+            return pd.DataFrame(X)[self.columns_]
+
+    return make_pipeline(KeepColumns(keep_function), TopScores(score_function, k), *steps)
