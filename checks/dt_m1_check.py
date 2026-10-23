@@ -85,6 +85,9 @@ def _test_tau(tau_hat, key):
         tau_hat = float(tau_hat)
     except Exception:
         return False, "tau_mine should be one number, the fitted time constant in seconds (the first value fit_tau returns)."
+    if not math.isfinite(tau_hat) or tau_hat <= 0:
+        return False, (f"tau_mine is {tau_hat}, but a time constant must be a finite, positive number of seconds. "
+                       "Fit tau to the readings of your stream from before 600 s with fit_tau(), as in Step 3, and use the first value it returns.")
     want = reference_tau(key)
     if abs(tau_hat - want) > 0.05:
         return False, (f"tau_mine is {tau_hat:.2f} s, but the fit of the readings of your stream from before 600 s gives a different value. "

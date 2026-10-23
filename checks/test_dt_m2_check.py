@@ -8,7 +8,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "content" / "m2"), str(ROOT / "checks")]
-from dt_m2_check import (check_dt_module2, personal_value, reference_align, reference_keep_signals,  # noqa: E402
+from dt_m2_check import (check_dt_module2, personal_value, verification_code, reference_align, reference_keep_signals,  # noqa: E402
                          reference_missing_fraction, reference_s2n)
 from furnace import fab_records  # noqa: E402
 
@@ -245,7 +245,7 @@ bad = 0
 checked_good = checked_bad = 0
 G = dict(missing_fraction=mf_mean, keep_signals=ks_template, s2n_scores=s2n_ref, align_runs=al_template)
 for key in KEYS:
-    want = personal_value(key)
+    want = verification_code(key)
     for i in range(max(len(MF_GOOD), len(KS_GOOD), len(S2N_GOOD), len(AL_GOOD))):
         fns = (MF_GOOD[i % len(MF_GOOD)], KS_GOOD[i % len(KS_GOOD)], S2N_GOOD[i % len(S2N_GOOD)], AL_GOOD[i % len(AL_GOOD)])
         ok, msgs, val = check_dt_module2(*fns, key)
@@ -273,3 +273,9 @@ for k in [None, "abc", 99, 1000]:
 print(check_dt_module2(mf_mean, ks_template, s2n_ref, al_template, 417)[1])
 print(f"{checked_good} good and {checked_bad} wrong combinations over KEYs {KEYS}: {bad} wrong verdicts")
 assert bad == 0
+
+# ---------------------------------------------------------------- the verification value is not the result the notebook prints earlier
+from dt_m2_check import personal_value as _result, verification_code as _code  # noqa: E402
+for _k in (417, 100):
+    assert abs(_code(_k) - _result(_k)) > 0.0005, "the verification value must differ from the result printed before the check"
+print("bypass test passed: the verification value differs from the printed result for KEYs", (417, 100))

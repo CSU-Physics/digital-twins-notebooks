@@ -260,6 +260,11 @@ def bad_sheets(track, key, other_key):
     for t in ("heldout", "challenging", "baseline"):
         mk(f"{t} +0.002", **{f"{t}_mae": round(g[f"{t}_mae"] + 0.002, 3)})
         mk(f"{t} as text", **{f"{t}_mae": "about 0.4"})
+        for bad_value, label in [(float("nan"), "NaN"), ("nan", "text nan"), (float("inf"), "infinity"), (float("-inf"), "minus infinity"),
+                                 (-g[f"{t}_mae"], "negative"), (True, "True"), ("", "empty text")]:
+            mk(f"{t} {label}", **{f"{t}_mae": bad_value})
+    mk("all three MAEs NaN", heldout_mae=float("nan"), challenging_mae=float("nan"), baseline_mae=float("nan"))
+    mk("all three MAEs text nan", heldout_mae="nan", challenging_mae="nan", baseline_mae="nan")
     for t in ("heldout", "challenging"):
         other = next(v for v in K.C.VERDICTS if v != g[f"{t}_verdict"])
         mk(f"{t} verdict wrong", **{f"{t}_verdict": other})

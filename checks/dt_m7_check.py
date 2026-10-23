@@ -384,8 +384,9 @@ def _check_datasheet(track, sheet, res):
     # 3. the numbers and verdicts
     for t in ("heldout", "challenging", "baseline"):
         g = _num(sheet.get(f"{t}_mae"))
-        if g is None:
-            problems.append(f"{t}_mae is {sheet.get(f'{t}_mae')!r}: type the number your notebook printed, for example 0.412.")
+        if g is None or isinstance(sheet.get(f"{t}_mae"), bool) or not math.isfinite(g) or g < 0:
+            problems.append(f"{t}_mae is {sheet.get(f'{t}_mae')!r}: an MAE is a finite number of zero or more. "
+                            "Type the number your notebook printed, for example 0.412.")
         elif abs(g - res[t][0]) > NUM_TOL:
             problems.append(f"{t}_mae is {g:g} {unit}, but your {NAMES[t]} test gives {res[t][0]:.3f} {unit} for KEY {res['key']}. "
                             "Run the step for your KEY again and copy its number (3 decimals).")

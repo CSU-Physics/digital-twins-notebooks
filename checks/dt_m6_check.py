@@ -18,9 +18,14 @@ The learner writes
                                              latest last) are ALL beyond the limit in size: abs(value) > limit; False when recent has
                                              fewer than k values.
 
-The verification value is the mean cycle-time reduction, in hours to 3 decimals, when lithography is 10 % faster (litho_h 1.0 -> 0.9),
+The learner's result is the mean cycle-time reduction, in hours to 3 decimals, when lithography is 10 % faster (litho_h 1.0 -> 0.9),
 over 20 replications with seeds KEY*1000 + 1 ... KEY*1000 + 20 (1,000 h each, the first 200 h discarded), the same seeds for both
 lines. It is computed with the course's reference functions and printed only when every test passes.
+
+The verification value that the check prints is not the result itself, which the notebook shows earlier as a learning
+output. It is a code made from the result and the KEY: (A * round(1000 * result) + B * KEY + C) mod 9973, divided by
+1000, to 3 decimals, with A = 19, B = 36, C = 601 for this module. It is printed only when every test passes, so the
+result alone does not answer Question 1. It shows that the check passed for this KEY; it is not proof of authorship.
 """
 
 import math
@@ -78,6 +83,15 @@ def personal_raw(key):
 
 def personal_value(key):
     return round(personal_raw(key), 3)
+
+
+CODE_A, CODE_B, CODE_C = 19, 36, 601
+
+
+def verification_code(key):
+    """The verification value: a code made from the learner's result and the KEY, printed only when every test passes."""
+    n = int(round(personal_value(key) * 1000))
+    return ((CODE_A * n + CODE_B * int(key) + CODE_C) % 9973) / 1000
 
 
 # ---------------------------------------------------------------- helpers
@@ -354,4 +368,4 @@ def check_dt_module6(throughput, mean_cycle_time, time_average_wip, ci95, calibr
     msgs = [("PASSED  " if ok else "NOT PASSED  ") + m for ok, m in results]
     if not all(ok for ok, _ in results):
         return False, msgs, None
-    return True, msgs, personal_value(key)
+    return True, msgs, verification_code(key)

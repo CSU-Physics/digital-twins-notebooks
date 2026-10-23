@@ -92,7 +92,8 @@ for key in KEYS:
             bad += 1
             print("WRONG VERDICT bad update", key, up.__name__, msgs)
     other = 417 if key != 417 else 100
-    wrong_taus = [None, "abc", tau_window(key, end=1800), tau_window(key, end=1200), tau_window(other), 150.0]
+    wrong_taus = [None, "abc", tau_window(key, end=1800), tau_window(key, end=1200), tau_window(other), 150.0,
+                  float("nan"), "nan", np.nan, float("inf"), float("-inf"), -reference_tau(key), 0.0, reference_tau(key) + 1.0]
     for tau in wrong_taus:
         ok, msgs, val = check_dt_module1(up_isnan, tau, key)
         if ok or val is not None:
@@ -107,7 +108,8 @@ for k in [None, "abc", 99, 1000]:
 for up in [up_no_nan, up_sign, up_inverted, up_returns_none]:
     print(check_dt_module1(up, reference_tau(417), 417)[1][0])
 print(check_dt_module1(up_isnan, tau_window(417, end=1800), 417)[1][1])
+print(check_dt_module1(up_isnan, float('nan'), 417)[1][1])
 n_good = len(KEYS) * len(GOOD) * 2
-n_bad = len(KEYS) * (len(WRONG) + 6)  # a fit of only the first 300 s gives nearly the same tau, so it is accepted
+n_bad = len(KEYS) * (len(WRONG) + 14)  # a fit of only the first 300 s gives nearly the same tau, so it is accepted
 print(f"{n_good} good and {n_bad} wrong combinations over KEYs {KEYS}: {bad} wrong verdicts")
 assert bad == 0

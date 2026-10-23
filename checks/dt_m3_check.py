@@ -10,9 +10,16 @@ The learner writes
 and calls the supplied fit_deal_grove() on the calibration runs of their own furnace, oxidation_runs(KEY), with the
 stated starting oxide (25.0 nm) and measurement standard deviation (0.5 nm), and passes the result as fit_mine.
 
-The verification value is the thickness the learner's calibrated model predicts for the new run of 270 minutes,
+The learner's result is the thickness the learner's calibrated model predicts for the new run of 270 minutes,
 in nm to 3 decimals, computed with the course's reference functions and printed only when every test passes.
+
+The verification value that the check prints is not the result itself, which the notebook shows earlier as a learning
+output. It is a code made from the result and the KEY: (A * round(1000 * result) + B * KEY + C) mod 9973, divided by
+1000, to 3 decimals, with A = 11, B = 26, C = 307 for this module. It is printed only when every test passes, so the
+result alone does not answer Question 1. It shows that the check passed for this KEY; it is not proof of authorship.
 """
+
+import math
 
 import numpy as np
 
@@ -42,6 +49,15 @@ def personal_raw(key):
 
 def personal_value(key):
     return round(personal_raw(key), 3)
+
+
+CODE_A, CODE_B, CODE_C = 11, 26, 307
+
+
+def verification_code(key):
+    """The verification value: a code made from the learner's result and the KEY, printed only when every test passes."""
+    n = int(round(personal_value(key) * 1000))
+    return ((CODE_A * n + CODE_B * int(key) + CODE_C) % 9973) / 1000
 
 
 # ---------------------------------------------------------------- helpers
@@ -140,11 +156,44 @@ def _test_thickness(dg_thickness):
     return True, "dg_thickness() passed its tests on arrays and single times, with and without a starting oxide."
 
 
+def _finite(v):
+    try:
+        return math.isfinite(float(v))
+    except (TypeError, ValueError):
+        return False
+
+
+def _invalid_fit_fields(fit):
+    """The name of the first field of a fit dict that is missing, not finite or not physically valid; None if all are valid."""
+    for k in ("B", "BA", "xi", "sigma", "n", "se_B", "se_BA"):
+        if k not in fit or not _finite(fit[k]):
+            return f"value of {k}" if k in fit else f"dict: {k} is missing"
+    if float(fit["B"]) <= 0 or float(fit["BA"]) <= 0:
+        return "B or B/A (they must be above zero)"
+    if float(fit["sigma"]) <= 0 or float(fit["xi"]) < 0 or float(fit["se_B"]) < 0 or float(fit["se_BA"]) < 0:
+        return "sigma, xi or standard error (none can be negative, and sigma must be above zero)"
+    try:
+        cov = np.asarray(fit["cov"], dtype=float)
+    except (KeyError, TypeError, ValueError):
+        return "covariance (cov)"
+    if cov.shape != (2, 2) or not np.all(np.isfinite(cov)):
+        return "covariance (cov): it must be a 2 x 2 matrix of finite numbers"
+    if abs(cov[0, 1] - cov[1, 0]) > 1e-9 * max(1.0, abs(cov[0, 1])):
+        return "covariance (cov): it must be symmetric"
+    if np.min(np.linalg.eigvalsh(cov)) < -1e-12 * max(1.0, float(np.max(np.abs(cov)))):
+        return "covariance (cov): it must be positive semidefinite"
+    return None
+
+
 def _test_fit(fit_mine, key):
     if fit_mine is None:
         return False, "fit_mine is still None: in Step 9, call fit_deal_grove() on your own calibration runs, as in Step 5."
     if not isinstance(fit_mine, dict) or "B" not in fit_mine or "BA" not in fit_mine:
         return False, "fit_mine should be the result of fit_deal_grove(...), a dict with B, BA and the other results."
+    bad = _invalid_fit_fields(fit_mine)
+    if bad:
+        return False, (f"fit_mine has an invalid {bad}. Every number in it must be finite and physically valid (B, B/A and sigma above zero, "
+                       "the covariance a symmetric 2 x 2 matrix with no negative variance). Use the dict that fit_deal_grove() returns, unchanged.")
     want = reference_fit(key)
     if abs(float(fit_mine.get("xi", -1)) - OX_XI_NM) > 1e-9:
         return False, (f"fit_mine was fitted with xi = {fit_mine.get('xi')} nm. Your calibration wafers start with OX_XI_NM = {OX_XI_NM} nm "
@@ -161,6 +210,10 @@ def _test_fit(fit_mine, key):
             return False, "fit_mine is the fit of the example furnace (key 2026). Fit the calibration runs of oxidation_runs(KEY), your own furnace."
         return False, ("fit_mine does not match the fit of your calibration runs. Use mine = oxidation_runs(KEY), then "
                        "fit_deal_grove(cal['time_min'], cal['thickness_nm'], OX_SIGMA_NM, OX_XI_NM) with cal = mine['calibration'].")
+    if not np.allclose(np.asarray(fit_mine["cov"], dtype=float), want["cov"], rtol=1e-4, atol=0) or \
+            not (_close(fit_mine["se_B"], want["se_B"], 1e-4) and _close(fit_mine["se_BA"], want["se_BA"], 1e-4)):
+        return False, ("fit_mine has the right B and B/A but not the uncertainties of your fit. Use the dict that fit_deal_grove() returns, unchanged: "
+                       "its covariance and standard errors set the bands.")
     return True, f"fit_mine matches the fit of your 12 calibration runs: B = {want['B']:.2f} nm^2/min, B/A = {want['BA']:.4f} nm/min."
 
 
@@ -175,4 +228,4 @@ def check_dt_module3(dg_tau, dg_thickness, fit_mine, KEY):
     msgs = [("PASSED  " if ok else "NOT PASSED  ") + m for ok, m in results]
     if not all(ok for ok, _ in results):
         return False, msgs, None
-    return True, msgs, personal_value(key)
+    return True, msgs, verification_code(key)

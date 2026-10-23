@@ -170,7 +170,7 @@ def main():
     wrong_verdicts = 0
     for e, k, t, a in good:
         ok, msgs, val = check_dt_module5(e, k, t, a, 417)
-        if not ok or val is None:
+        if not ok or val is None or abs(val - __import__('dt_m5_check').verification_code(417)) > 1e-9:
             wrong_verdicts += 1
             print("GOOD SOLUTION FAILED:", e.__name__, k.__name__, t.__name__, a.__name__, msgs)
     n_bad = 0
@@ -195,5 +195,15 @@ def main():
     return wrong_verdicts
 
 
+def bypass_test():
+    """The verification value is not the result the notebook prints earlier."""
+    from dt_m5_check import personal_value as _result, verification_code as _code  # noqa: E402
+    for _k in (417, 100):
+        assert abs(_code(_k) - _result(_k)) > 0.0005, "the verification value must differ from the result printed before the check"
+    print("bypass test passed: the verification value differs from the printed result for KEYs", (417, 100))
+
+
 if __name__ == "__main__":
+    bypass_test()
     sys.exit(1 if main() else 0)
+

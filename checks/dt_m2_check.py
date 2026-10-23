@@ -15,9 +15,14 @@ Part B (simulated). The learner writes
                                                last metrology record (delay_h); NaN for a run with no metrology.
 
 The hidden tests use small made-up tables and the simulated records of other KEYs, never the learner's own answers.
-The verification value is the correlation between the mean hold temperature and the average thickness over the runs
+The learner's result is the correlation between the mean hold temperature and the average thickness over the runs
 of the learner's own record set, fab_records(KEY), whose metrology arrived within 12 hours, to 3 decimals. It is
 computed with the course's reference functions and printed only when every test passes.
+
+The verification value that the check prints is not the result itself, which the notebook shows earlier as a learning
+output. It is a code made from the result and the KEY: (A * round(1000 * result) + B * KEY + C) mod 9973, divided by
+1000, to 3 decimals, with A = 7, B = 26, C = 211 for this module. It is printed only when every test passes, so the
+result alone does not answer Question 1. It shows that the check passed for this KEY; it is not proof of authorship.
 """
 import math
 
@@ -77,6 +82,15 @@ def personal_raw(key):
 
 def personal_value(key):
     return round(personal_raw(key), 3)
+
+
+CODE_A, CODE_B, CODE_C = 7, 26, 211
+
+
+def verification_code(key):
+    """The verification value: a code made from the learner's result and the KEY, printed only when every test passes."""
+    n = int(round(personal_value(key) * 1000))
+    return ((CODE_A * n + CODE_B * int(key) + CODE_C) % 9973) / 1000
 
 
 # ---------------------------------------------------------------- helpers
@@ -310,7 +324,7 @@ def _test_align(align_runs):
             if _same(g_d, -w_d, 1e-3):
                 return False, "delay_h is negative: it is the time of the last metrology record minus the end_time of the run."
             return False, (f"delay_h is wrong for {label}: it is the hours from the run's end_time to the time of its last metrology record "
-                           "(the moment the run's result is complete).")
+                           "(its latest available record; a run with a wafer never measured still has one).")
     return True, "align_runs() passed its tests, including a run with no metrology, a late run, a wafer not measured and records out of order."
 
 
@@ -326,4 +340,4 @@ def check_dt_module2(missing_fraction, keep_signals, s2n_scores, align_runs, KEY
     msgs = [("PASSED  " if ok else "NOT PASSED  ") + m for ok, m in results]
     if not all(ok for ok, _ in results):
         return False, msgs, None
-    return True, msgs, personal_value(key)
+    return True, msgs, verification_code(key)

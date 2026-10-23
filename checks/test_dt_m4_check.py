@@ -250,7 +250,7 @@ def main():
                     for o in GOOD["outside"]:
                         ok, msgs, val = check_dt_module4(b, r, h, o, key)
                         n_good += 1
-                        if not ok or val is None:
+                        if not ok or val is None or abs(val - __import__('dt_m4_check').verification_code(key)) > 1e-9:
                             bad += 1
                             print("GOOD FAILED", key, b.__name__, r.__name__, h.__name__, o.__name__, msgs)
         for part, fns in WRONG.items():
@@ -271,5 +271,15 @@ def main():
     return bad
 
 
+def bypass_test():
+    """The verification value is not the result the notebook prints earlier."""
+    from dt_m4_check import personal_value as _result, verification_code as _code  # noqa: E402
+    for _k in (417, 100):
+        assert abs(_code(_k) - _result(_k)) > 0.0005, "the verification value must differ from the result printed before the check"
+    print("bypass test passed: the verification value differs from the printed result for KEYs", (417, 100))
+
+
 if __name__ == "__main__":
+    bypass_test()
     sys.exit(1 if main() else 0)
+

@@ -8,7 +8,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "content" / "m3"), str(ROOT / "checks")]
-from dt_m3_check import check_dt_module3, personal_value  # noqa: E402
+from dt_m3_check import check_dt_module3, personal_value, verification_code  # noqa: E402
 from furnace import OX_SIGMA_NM, OX_XI_NM, THIN_XI_NM, oxidation_runs  # noqa: E402
 from oxide_tools import fit_deal_grove, linear_form_fit  # noqa: E402
 
@@ -113,13 +113,23 @@ def fits(key):
            fit_deal_grove(thin["time_min"], thin["thickness_nm"], OX_SIGMA_NM, THIN_XI_NM)]              # the thin-oxide runs
     other = oxidation_runs(417 if key != 417 else 100)["calibration"]
     bad.append(fit_deal_grove(other["time_min"], other["thickness_nm"], OX_SIGMA_NM, OX_XI_NM))           # another learner's furnace
+    # the right B and B/A, with one other field broken: NaN, infinity, a wrong covariance
+    import copy
+    base = good[0]
+    for field, value in [("xi", float("nan")), ("sigma", float("nan")), ("sigma", float("inf")), ("se_B", float("nan")),
+                         ("cov", np.full((2, 2), np.nan)), ("cov", np.zeros((3, 3))), ("cov", np.array([[1.0, 2.0], [0.0, 1.0]])),
+                         ("cov", np.array([[1.0, 0.0], [0.0, -1.0]])), ("cov", base["cov"] * 4), ("B", float("nan")), ("BA", -base["BA"]),
+                         ("n", float("nan")), ("se_BA", "nan")]:
+        f = copy.deepcopy(base)
+        f[field] = value
+        bad.append(f)
     return good, bad
 
 
 KEYS = [100, 417, 999]
 bad = n_good = n_bad = 0
 for key in KEYS:
-    want = personal_value(key)
+    want = verification_code(key)
     good_fits, bad_fits = fits(key)
     for i in range(max(len(TAU_GOOD), len(TH_GOOD), len(good_fits))):
         ok, msgs, val = check_dt_module3(TAU_GOOD[i % 3], TH_GOOD[i % 3], good_fits[i % 3], key)
@@ -152,3 +162,9 @@ for k in [None, "abc", 99, 1000]:
 print(check_dt_module3(tau_ref, th_ref, fits(417)[0][0], 417))
 print(f"{n_good} good and {n_bad} wrong combinations over KEYs {KEYS}: {bad} wrong verdicts")
 assert bad == 0
+
+# ---------------------------------------------------------------- the verification value is not the result the notebook prints earlier
+from dt_m3_check import personal_value as _result, verification_code as _code  # noqa: E402
+for _k in (417, 100):
+    assert abs(_code(_k) - _result(_k)) > 0.0005, "the verification value must differ from the result printed before the check"
+print("bypass test passed: the verification value differs from the printed result for KEYs", (417, 100))
