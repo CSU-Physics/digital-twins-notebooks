@@ -71,7 +71,7 @@
   <ul>
     <li>measure <strong>throughput, cycle time and work in progress</strong> at the same boundary, and check them with <strong>Little's law</strong>;</li>
     <li>explain why <strong>queues grow faster than load</strong>, and find the <strong>bottleneck</strong> of a line;</li>
-    <li>build a <strong>discrete-event simulation</strong> from lots, tools and queues, as in <strong>SimPy</strong>;</li>
+    <li>use and explain a supplied <strong>discrete-event simulation</strong> of lots, tools and queues in <strong>SimPy</strong>, and implement its measurement and maintenance functions;</li>
     <li>choose a <strong>warm-up</strong>, run <strong>replications</strong> and report a mean with a <strong>confidence interval</strong>;</li>
     <li>compare a <strong>what-if change</strong> by the mean and spread over replications, on the same random numbers;</li>
     <li>compare <strong>preventive</strong> and <strong>predictive</strong> maintenance using the Module 5 drift estimate, and say what a three-tool model leaves out.</li>
@@ -82,7 +82,7 @@
 
 <!-- 3 -->
 <section class="slide">
-  <h2>In a line, a lot's time is mostly waiting</h2>
+  <h2>In a line, nearly half of a lot's time is waiting</h2>
   <div class="cols"><div style="flex:0 0 620px"><svg width="620" height="390" viewBox="0 0 620 390" role="img" aria-label="Mean time in each tool group, split into processing and waiting; lithography has the longest wait"><text x="138.0" y="100.0" font-size="21" fill="#24313D" text-anchor="end" font-weight="600">furnace</text><rect x="150.0" y="70" width="191.1" height="44" fill="#2F5E8E"/><rect x="341.1" y="70" width="133.1" height="44" fill="#99004C"/><text x="482.2" y="100.0" font-size="19" fill="#24313D" text-anchor="start" font-weight="400">1.8 + 1.25 h</text><text x="138.0" y="182.0" font-size="21" fill="#24313D" text-anchor="end" font-weight="600">lithography</text><rect x="150.0" y="152" width="106.2" height="44" fill="#2F5E8E"/><rect x="256.2" y="152" width="240.7" height="44" fill="#99004C"/><text x="504.9" y="182.0" font-size="19" fill="#24313D" text-anchor="start" font-weight="400">1.0 + 2.27 h</text><text x="138.0" y="264.0" font-size="21" fill="#24313D" text-anchor="end" font-weight="600">etch</text><rect x="150.0" y="234" width="127.4" height="44" fill="#2F5E8E"/><rect x="277.4" y="234" width="4.8" height="44" fill="#99004C"/><text x="290.2" y="264.0" font-size="19" fill="#24313D" text-anchor="start" font-weight="400">1.2 + 0.04 h</text><line x1="150.0" y1="50" x2="150.0" y2="300" stroke="#E4DCE0"/><text x="150.0" y="322.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">0</text><line x1="256.2" y1="50" x2="256.2" y2="300" stroke="#E4DCE0"/><text x="256.2" y="322.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">1</text><line x1="362.4" y1="50" x2="362.4" y2="300" stroke="#E4DCE0"/><text x="362.4" y="322.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">2</text><line x1="468.6" y1="50" x2="468.6" y2="300" stroke="#E4DCE0"/><text x="468.6" y="322.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">3</text><line x1="574.8" y1="50" x2="574.8" y2="300" stroke="#E4DCE0"/><text x="574.8" y="322.0" font-size="19" fill="#6A626B" text-anchor="middle" font-weight="400">4</text><text x="373.0" y="352.0" font-size="20" fill="#6A626B" text-anchor="middle" font-weight="400">mean time in the group (h)</text><rect x="179" y="14" width="12" height="12" fill="#2F5E8E"/><text x="210.0" y="26.0" font-size="17" fill="#24313D" text-anchor="start" font-weight="400">processing</text><rect x="179" y="40" width="12" height="12" fill="#99004C"/><text x="210.0" y="52.0" font-size="17" fill="#24313D" text-anchor="start" font-weight="400">waiting for a tool</text></svg></div><div><ul style="padding-left:28px"><li style="font-size:22px">The lab's line: a lot needs 4.0 hours of processing in all, and spends 7.6 hours in the line.</li><li style="font-size:22px">The other 3.6 hours are spent in queues, and 2.3 of them in front of <strong>lithography</strong>.</li><li style="font-size:22px">A twin of one tool cannot see this: the wait depends on the other lots, the tools they use and how many tools there are.</li><li style="font-size:22px">Simulated line, mean of 20 replications after the warm-up.</li></ul></div></div>
   <div class="foot"><span>Module 6 · Toolset twin: queues and maintenance</span><span>3</span></div>
 </section>
@@ -251,16 +251,17 @@
 <!-- 19 -->
 <section class="slide">
   <h2>Three policies on the line, 20 replications each</h2>
-  <table style="font-size:20px;width:100%">
-    <tr><th>policy</th><th>calibrations</th><th>off-target lots</th><th>most in one replication</th><th>failing tube ran (median runs)</th><th>cycle time (h)</th></tr>
+  <table style="font-size:18px;width:100%">
+    <tr><th>policy</th><th>completed calibrations</th><th>off-target lots</th><th>most in one replication</th><th>failing tube ran (median runs)</th><th>cycle time (h)</th></tr>
     <tr><td>none</td><td>0</td><td style="white-space:nowrap">617 ± 26 of 668</td><td>703</td><td>-</td><td style="white-space:nowrap">7.56 ± 0.41</td></tr>
     <tr><td>preventive, every 50 runs</td><td>13.8 ± 0.2</td><td>38 ± 10</td><td>82</td><td>29</td><td style="white-space:nowrap">9.29 ± 0.71</td></tr>
-    <tr><td>predictive, 2.0 nm for 3 runs</td><td>12.1 ± 0.7</td><td>0 ± 0</td><td>0</td><td>10</td><td style="white-space:nowrap">8.96 ± 0.86</td></tr>
+    <tr><td>predictive, 2.0 nm for 3 runs</td><td>12.1 ± 0.7</td><td>none observed</td><td>0</td><td>10</td><td style="white-space:nowrap">8.96 ± 0.86</td></tr>
   </table>
-  <ul style="font-size:22px;margin-top:14px">
-    <li>The predictive rule makes fewer calibrations than the preventive rule and leaves no lot off target, because it calibrates each tube when its own estimate says so.</li>
-    <li>Calibrations cost capacity: with two tubes, one out for 8 hours leaves the other short, and cycle time rises from 7.6 to 9.0 h. Whether that pays depends on what an off-target lot costs, which the model does not know.</li>
+  <ul style="font-size:20px;margin-top:10px">
+    <li>The predictive rule makes fewer calibrations than the preventive rule, because it calibrates each tube when its own estimate says so. No off-target lot was observed in these 20 replications, which does not establish zero risk.</li>
+    <li>Calibrations cost capacity: one tube out for 8 hours leaves the other short, and cycle time rises from 7.6 to 9.0 h. Whether that pays depends on the cost of an off-target lot, which the model does not know.</li>
   </ul>
+  <p class="small" style="margin-top:6px">Model assumptions: compensation does not lengthen the furnace step, and a calibration also repairs a failing thermocouple.</p>
   <div class="foot"><span>Module 6 · Toolset twin: queues and maintenance</span><span>19</span></div>
 </section>
 

@@ -291,8 +291,10 @@
     sv(svg, 'text', { x: 548, y: 23, 'font-size': 12, fill: '#24313D', 'text-anchor': 'end', 'font-weight': 600 }, 'average ' + f(w1, 1) + ' lots');
     // chart 2: mean cycle time against load
     var s2 = $('swSvg'); clear(s2);
-    var YM = 24, fr2 = frame(s2, 560, 150, 46, 10, 8, 32, [0.4, 1.05], [0, YM], 'lots released per hour', 'mean cycle time (h)');
-    fr2.draw([0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], [0, 6, 12, 18, 24], function (v) { return v.toFixed(1); });
+    // the axis grows with the chosen load's interval, so the chosen point is always drawn at its value; curve values above the axis are marked
+    var topV = ctMean + ctHalf, YM = (isFinite(topV) && topV > 24) ? Math.ceil(topV / 12) * 12 : 24;
+    var fr2 = frame(s2, 560, 150, 46, 10, 8, 32, [0.4, 1.05], [0, YM], 'lots released per hour', 'mean cycle time (h)');
+    fr2.draw([0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], [0, YM / 4, YM / 2, 3 * YM / 4, YM], function (v) { return v.toFixed(1); });
     if (!labSweep) labSweep = sweep(LAB);
     var showLab = $('showLab').checked;
     if (showLab) line(s2, SW_L, labSweep, fr2.X, fr2.Y, '#6A626B', 2, '6 4', YM);
@@ -301,6 +303,9 @@
     var capMin = Math.min(c.nf / c.tf, c.nl / c.tl, c.ne / c.te);
     if (capMin < 1.05) { sv(s2, 'line', { x1: fr2.X(capMin), y1: fr2.Y(0), x2: fr2.X(capMin), y2: fr2.Y(YM), stroke: '#B3261E', 'stroke-width': 1.3, 'stroke-dasharray': '3 3' }); sv(s2, 'text', { x: fr2.X(capMin) - 4, y: fr2.Y(6), 'font-size': 11, fill: '#B3261E', 'text-anchor': 'end' }, 'capacity ' + f(capMin, 2)); }
     var yc = Math.min(ctMean, YM);
+    var above = curSweep.concat(showLab ? labSweep : []).some(function (v) { return !isFinite(v) || v > YM; });
+    if (above) sv(s2, 'text', { x: 552, y: fr2.Y(YM) + 12, 'font-size': 11, fill: '#B3261E', 'text-anchor': 'end' }, 'curve continues above ' + YM + ' h (drawn at the top)');
+    if (YM > 24) sv(s2, 'text', { x: 552, y: fr2.Y(YM) + 25, 'font-size': 11, fill: '#6A626B', 'text-anchor': 'end' }, 'axis rescaled to show the chosen load');
     sv(s2, 'line', { x1: fr2.X(c.lam), y1: fr2.Y(Math.max(0, Math.min(ctMean - ctHalf, YM))), x2: fr2.X(c.lam), y2: fr2.Y(Math.min(ctMean + ctHalf, YM)), stroke: '#24313D', 'stroke-width': 2 });
     sv(s2, 'circle', { cx: fr2.X(c.lam), cy: fr2.Y(yc), r: 4.5, fill: '#24313D' });
     var items = [['line', '#99004C', 'this line']]; if (showLab) items.push(['dash', '#6A626B', "the lab's line"]); items.push(['dot', '#24313D', 'chosen load, 95 % interval']);
@@ -401,6 +406,12 @@
     else if (A.off > 0 && B.off === 0) { cls = 'note'; var d0 = B.delays.length ? B.delays[0] : 0; txt = 'The failure began at run ' + fa + ' and the calendar did not come until later: ' + A.off + (A.off === 1 ? ' run' : ' runs') + ' went beyond 5 nm. The predictive rule calibrated ' + d0 + (d0 === 1 ? ' run' : ' runs') + ' after the failure began, and no run went beyond 5 nm.'; }
     else if (A.off === 0 && B.off === 0) { cls = 'note info'; txt = 'Here the calendar happened to fall soon after the failure began, so neither rule let a run go beyond 5 nm. Move the failure run, or press New noise, and compare again. One tube is one replication: use the button for 100 random tubes.'; }
     else if (B.off > 0) { cls = 'note warn'; txt = 'The predictive rule let ' + B.off + (B.off === 1 ? ' run' : ' runs') + ' go beyond 5 nm: the alarm limit or the number of runs in a row is too lax for this failure, because the drift grows by about 0.18 nm per run once the thermocouple fails. Lower the limit or the runs in a row.'; }
+    if (MC_MODE) {
+      var mcr = window.__m6mc, predMean = mcr ? mcr.res.pred.reduce(function (a, b) { return a + b; }, 0) / mcr.res.pred.length : NaN;
+      cls = 'note info';
+      txt = 'The table shows 100 random tubes, each with its own failure run and noise, under the three rules: the mean and 95 % interval of each column. The two plots above still show the single illustrated tube, not the 100.' +
+        (predMean === 0 ? ' No run beyond 5 nm was observed under the predictive rule in these 100 tubes; that does not establish zero risk, only that these tubes contained no such event.' : '');
+    }
     msg.className = cls; msg.textContent = txt;
     window.__m6t = { A: A, B: B, N0: N0, makeTube: makeTube, life: life };
   }
@@ -411,10 +422,11 @@
       ['none', 'prev', 'pred'].forEach(function (pol) { var L = life(t, pol, p, -1); res[pol].push(L.off); calN[pol].push(L.cal.length); });
     }
     function cell(a) { return f(meanSd(a)[0], 1) + ' \u00b1 ' + f(half(a), 1); }
+    function cellOff(a) { return a.every(function (v) { return v === 0; }) ? 'none observed' : cell(a); }
     window.__m6mc = { res: res, calN: calN };
     return '<table><tr><th>100 random tubes</th><th>calibrations</th><th>tube hours out</th><th>runs beyond 5 nm</th></tr>' +
-      ['none', 'prev', 'pred'].map(function (pol) { var hrs = calN[pol].map(function (v) { return v * CAL_H; }); return '<tr><td>' + { none: 'none', prev: 'preventive', pred: 'predictive' }[pol] + '</td><td>' + cell(calN[pol]) + '</td><td>' + cell(hrs) + '</td><td>' + cell(res[pol]) + '</td></tr>'; }).join('') + '</table>' +
-      '<div class="small" style="margin-top:2px">170 runs per tube, a failure has a 1 in 150 chance on every run, the same noise under all three rules. Mean \u00b1 95 % interval.</div>';
+      ['none', 'prev', 'pred'].map(function (pol) { var hrs = calN[pol].map(function (v) { return v * CAL_H; }); return '<tr><td>' + { none: 'none', prev: 'preventive', pred: 'predictive' }[pol] + '</td><td>' + cell(calN[pol]) + '</td><td>' + cell(hrs) + '</td><td>' + cellOff(res[pol]) + '</td></tr>'; }).join('') + '</table>' +
+      '<div class="small" style="margin-top:2px">170 runs per tube, a failure has a 1 in 150 chance on every run, the same noise under all three rules. Mean \u00b1 95 % interval; \u201cnone observed\u201d means no run went beyond 5 nm in these 100 tubes, which does not establish zero risk.</div>';
   }
   function mc() { MC_MODE = !MC_MODE; $('mc').textContent = MC_MODE ? 'One tube' : '100 random tubes'; drawTube(); }
   pair($('iv'), $('ivN'), function () { drawTube(); });
