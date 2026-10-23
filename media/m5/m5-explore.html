@@ -284,11 +284,12 @@
     legend(svg, 360, 22, [['dot', '#A9A2AA', 'observations'], ['dash', '#24313D', 'true offset (simulation only)'], ['line', '#99004C', 'EWMA estimate'], ['line', '#2F5E8E', 'Kalman estimate']]);
     // gain
     var s2 = $('gainSvg'); clear(s2);
-    var fr2 = frame(s2, 560, 150, 46, 10, 8, 34, [0, 60], [0, 0.6], 'run', 'weight', function (v) { return v.toFixed(1); });
-    fr2.draw([0, 10, 20, 30, 40, 50, 60], [0, 0.2, 0.4, 0.6]);
-    line(s2, [0, 60], [Math.min(lam, 0.6), Math.min(lam, 0.6)], fr2.X, fr2.Y, '#99004C', 1.8, '6 4');
-    for (k = 0; k < N; k++) if (gains[k] !== null) sv(s2, 'circle', { cx: fr2.X(runs[k]), cy: fr2.Y(Math.min(gains[k], 0.6)), r: 2.6, fill: '#2F5E8E' });
-    legend(s2, 330, 22, [['line', '#2F5E8E', 'Kalman gain K, run by run'], ['dash', '#99004C', 'EWMA weight λ' + (lam > 0.6 ? ' (above the axis)' : '')]]);
+    // weights run from 0 to 1: the axis covers that whole range, and every gain is plotted at its own value
+    var fr2 = frame(s2, 560, 150, 46, 10, 8, 34, [0, 60], [0, 1], 'run', 'weight', function (v) { return v.toFixed(1); });
+    fr2.draw([0, 10, 20, 30, 40, 50, 60], [0, 0.2, 0.4, 0.6, 0.8, 1.0]);
+    line(s2, [0, 60], [lam, lam], fr2.X, fr2.Y, '#99004C', 1.8, '6 4');
+    for (k = 0; k < N; k++) if (gains[k] !== null) sv(s2, 'circle', { cx: fr2.X(runs[k]), cy: fr2.Y(gains[k]), r: 2.6, fill: '#2F5E8E' });
+    legend(s2, 330, 22, [['line', '#2F5E8E', 'Kalman gain K, run by run'], ['dash', '#99004C', 'EWMA weight λ']]);
     var Ps = (Q + Math.sqrt(Q * Q + 4 * Q * R)) / 2, Ks = Ps / (Ps + R);
     var rm1 = Math.sqrt(se1 / N), rm2 = Math.sqrt(se2 / N);
     $('statsEst').innerHTML = 'Error of the estimates against the true offset (RMSE over 60 runs): EWMA <span class="mono">' + f(rm1, 3) + '</span> nm, Kalman <span class="mono">' + f(rm2, 3) +
