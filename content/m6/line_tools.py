@@ -19,7 +19,7 @@ import pandas as pd
 import line
 from line import STAGES, line_config, run_line
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 HOURS = 1000.0                       # one replication simulates this long (hours), starting with an empty line
 WARMUP_H = 200.0                     # the first hours are discarded: the line starts empty
@@ -150,7 +150,8 @@ def replication_table(runs, t_start=WARMUP_H, t_end=None):
 
 
 def maintenance_table(runs, t_start=WARMUP_H, t_end=None):
-    """One row per replication: furnace calibrations started in the window, how many were triggered by the drift estimate,
+    """One row per replication: furnace calibrations started in the window and finished by the end of the run (a calibration
+    is logged when it ends, so one still under way at the end is not counted), how many were triggered by the drift estimate,
     lots processed while the furnace drift was beyond what the controller can correct (off target), and the mean cycle time."""
     rows = []
     for r in runs:
