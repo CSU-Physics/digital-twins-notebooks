@@ -46,7 +46,7 @@
 <!-- TOOL 1: complexity -->
 <section class="tool" id="t-complexity" role="tabpanel">
   <h2>Training error and test error as the model grows</h2>
-  <p class="hint">Simulated oxide thickness against oxidation time: a smooth growth curve plus measurement noise. A polynomial is fitted to the training points by least squares. The test points are new measurements from the same furnace that the fit never sees. Raise the degree and watch both errors.</p>
+  <p class="hint">Simulated oxide thickness against oxidation time: a smooth growth curve plus measurement noise. A polynomial is fitted to the training points by least squares. The test points are new measurements from the same furnace that the fit never sees. Raise the degree and watch both errors. The test points are here only to show the behavior: in practice the degree is chosen with cross-validation on the training data, and the test set is kept for the final check.</p>
   <div class="grid">
     <div class="box">
       <h3>Model and data</h3>
@@ -260,7 +260,7 @@
     if (d + 1 >= n && pen === 0) { cls = 'note bad'; txt = 'The polynomial has ' + (d + 1) + ' coefficients for ' + n + ' points: it can pass through every training point, so the training error says nothing. Look at the test error.'; }
     else if (errs[d - 1][1] > 1.5 * errs[best - 1][1] && d > best) { cls = 'note warn'; txt = 'Overfitting: the training error is below the noise, but the curve bends to follow the noise and misses the new points. Try a smaller degree, more training points, or a penalty.'; }
     else if (d < best && errs[d - 1][1] > 1.2 * errs[best - 1][1]) { cls = 'note warn'; txt = 'Underfitting: the model is too simple for the curve, so both errors stay high.'; }
-    else { txt = 'The test error is close to its smallest value: a model of about this complexity describes the curve without chasing the noise. Its error cannot fall below the noise σ.'; }
+    else { txt = 'The test error is close to its smallest value: a model of about this complexity describes the curve without chasing the noise. Independent measurement noise sets a floor on the expected error near σ, although the RMSE measured on a finite set of new points can come out a little above or below σ.'; }
     msg.className = cls; msg.textContent = txt;
   }
   pair($('dg'), $('dgN'), draw1); pair($('np'), $('npN'), draw1); pair($('ns'), $('nsN'), draw1);
@@ -319,12 +319,12 @@
       else sv(svg, 'line', { x1: lx, y1: yy - 4, x2: lx + 18, y2: yy - 4, stroke: it[1], 'stroke-width': 2.5, 'stroke-dasharray': it[0] === 'dash' ? '8 5' : '' });
       sv(svg, 'text', { x: lx + 26, y: yy, 'font-size': 12, fill: '#24313D' }, it[2]);
     });
-    var xt = truth(tq), eL = fLin(tq) - xt, eH = fHyb(tq) - xt;
-    $('statsEx').innerHTML = 'At ' + f(tq, 0) + ' min: true thickness <span class="mono">' + f(xt, 2) + '</span> nm; data-driven <span class="mono">' + f(fLin(tq), 2) + '</span> nm (error ' + (eL >= 0 ? '+' : '') + f(eL, 2) +
+    var xt = truth(tq), eL = xt - fLin(tq), eH = xt - fHyb(tq);   // error = true minus predicted, the sign convention of the notebook (measured minus predicted)
+    $('statsEx').innerHTML = 'At ' + f(tq, 0) + ' min: true thickness <span class="mono">' + f(xt, 2) + '</span> nm; data-driven <span class="mono">' + f(fLin(tq), 2) + '</span> nm (error, true − predicted, ' + (eL >= 0 ? '+' : '') + f(eL, 2) +
       ' nm); hybrid <span class="mono">' + f(fHyb(tq), 2) + '</span> nm (error ' + (eH >= 0 ? '+' : '') + f(eH, 2) + ' nm).<br>Range check: ' + f(Math.max(0, lo), 0) + ' to ' + f(hi, 0) + ' min, so this time is <strong>' + (outside ? 'outside: flag it and measure the wafers' : 'inside') + '</strong>.';
     var msg = $('msgEx'), cls, txt;
     if (!outside) { cls = 'note info'; txt = 'Inside the training range both models stay close to the truth: here the straight line is a good local description of the growth curve.'; }
-    else if (Math.abs(eL) > 2 * Math.abs(eH) && Math.abs(eL) > 1) { cls = 'note warn'; txt = 'Outside the range the straight line keeps its slope, but oxide growth slows as the oxide thickens, so the line ' + (eL > 0 ? 'overshoots' : 'undershoots') + '. The hybrid takes the curve from physics and only extrapolates its small correction.'; }
+    else if (Math.abs(eL) > 2 * Math.abs(eH) && Math.abs(eL) > 1) { cls = 'note warn'; txt = 'Outside the range the straight line keeps its slope, but oxide growth slows as the oxide thickens, so the line ' + (eL < 0 ? 'overshoots (a negative error: predicted too thick)' : 'undershoots') + '. The hybrid takes the curve from physics and only extrapolates its small correction.'; }
     else { cls = 'note bad'; txt = 'Outside the range: both models are extrapolating, and nothing in the training runs tested this time. The range check flags it whichever model happens to be closer.'; }
     msg.className = cls; msg.textContent = txt;
   }
