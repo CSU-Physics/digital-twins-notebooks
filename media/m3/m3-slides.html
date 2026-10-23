@@ -209,7 +209,7 @@
   <p>A calibrated model gives se_mean = 0.30 nm at some time, and one measurement has σ = 0.50 nm.</p>
   <p><strong>Predict:</strong> the half-width of the 95% prediction band?</p>
   <div class="reveal"><button type="button">Show the answer</button>
-    <div class="ans">se_pred = √(0.30² + 0.50²) = 0.583 nm, so the half-width is 1.96 × 0.583 = 1.14 nm. Calibrating with more runs shrinks se_mean, but never below the measurement's own σ.</div></div>
+    <div class="ans">se_pred = √(0.30² + 0.50²) = 0.583 nm, so the half-width is 1.96 × 0.583 = 1.14 nm. More calibration runs can reduce se_mean below σ; one new measurement still carries its own noise, so se_pred ≥ σ.</div></div>
   <div class="foot"><span>Module 3 · Physics model: thermal oxidation</span><span>16</span></div>
 </section>
 

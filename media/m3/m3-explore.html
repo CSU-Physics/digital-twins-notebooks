@@ -240,7 +240,7 @@
     // Levenberg-Marquardt on (B, B/A), weights 1/sigma^2, then the covariance (J^T W J)^-1
     var B = 0.9 * TRUE.B, BA = 1.1 * TRUE.BA, lam = 1e-3;
     function cost(b, a) { var s = 0; for (var i = 0; i < d.t.length; i++) { var e = (d.x[i] - dg(d.t[i], b, a, XI)) / d.sig; s += e * e; } return s; }
-    var c = cost(B, BA);
+    var c = cost(B, BA), conv = false;
     for (var it = 0; it < 200; it++) {
       var a11 = 0, a12 = 0, a22 = 0, g1 = 0, g2 = 0;
       for (var i = 0; i < d.t.length; i++) { var g = grad(d.t[i], B, BA), e = d.x[i] - dg(d.t[i], B, BA, XI), w = 1 / (d.sig * d.sig);
@@ -248,13 +248,13 @@
       var m11 = a11 * (1 + lam), m22 = a22 * (1 + lam), det = m11 * m22 - a12 * a12;
       var dB = (m22 * g1 - a12 * g2) / det, dA = (m11 * g2 - a12 * g1) / det;
       var nb = B + dB, na = BA + dA;
-      if (nb > 0 && na > 0 && cost(nb, na) < c) { B = nb; BA = na; var nc = cost(B, BA); lam = Math.max(lam / 3, 1e-9); if (Math.abs(c - nc) < 1e-12 * (1 + c)) { c = nc; break; } c = nc; }
-      else { lam *= 4; }
+      if (nb > 0 && na > 0 && cost(nb, na) < c) { B = nb; BA = na; var nc = cost(B, BA); lam = Math.max(lam / 3, 1e-9); if (Math.abs(c - nc) < 1e-12 * (1 + c)) { c = nc; conv = true; break; } c = nc; }
+      else { lam *= 4; if (lam > 1e12) { conv = true; break; } }      // no step lowers the cost: at the minimum
     }
     a11 = 0; a12 = 0; a22 = 0;
     for (i = 0; i < d.t.length; i++) { g = grad(d.t[i], B, BA); w = 1 / (d.sig * d.sig); a11 += w * g[0] * g[0]; a12 += w * g[0] * g[1]; a22 += w * g[1] * g[1]; }
     det = a11 * a22 - a12 * a12;
-    return { B: B, BA: BA, cov: [[a22 / det, -a12 / det], [-a12 / det, a11 / det]], chi2: c, dof: d.t.length - 2 };
+    return { B: B, BA: BA, cov: [[a22 / det, -a12 / det], [-a12 / det, a11 / det]], chi2: c, dof: d.t.length - 2, conv: conv };
   }
   function pred(F, t, sig) {
     var x = dg(t, F.B, F.BA, XI), g = grad(t, F.B, F.BA), C = F.cov;
@@ -263,6 +263,10 @@
   }
   function draw2() {
     var d = design(), F = fit(d), tp = parseFloat($('tp').value), P = pred(F, tp, d.sig);
+    // is the fit identified? Covariance-based bands are a local approximation: for a fit whose constants the runs do not pin down
+    // (relative standard error above 50 %, a covariance that is not finite and positive, or no convergence) they are not reliable 95 % intervals
+    var sB0 = Math.sqrt(F.cov[0][0]), sA0 = Math.sqrt(F.cov[1][1]), rel = Math.max(sB0 / Math.abs(F.B), sA0 / Math.abs(F.BA));
+    var ident = F.conv && [F.B, F.BA, F.cov[0][0], F.cov[0][1], F.cov[1][1], rel].every(isFinite) && F.cov[0][0] > 0 && F.cov[1][1] > 0 && rel <= 0.5;
     var svg = $('bandSvg'); clear(svg);
     var X0 = 58, X1 = 548, Y0 = 250, Y1 = 14, TMAX = 1440, hi = 450;
     var X = function (t) { return X0 + t / TMAX * (X1 - X0); }, Y = function (v) { return Y0 - v / hi * (Y0 - Y1); };
@@ -282,12 +286,15 @@
       up.push(X(t).toFixed(1) + ',' + Y(q.x + K * Z * q.sp).toFixed(1)); lo.unshift(X(t).toFixed(1) + ',' + Y(q.x - K * Z * q.sp).toFixed(1));
       cu.push(X(t).toFixed(1) + ',' + Y(q.x + K * Z * q.sm).toFixed(1)); cl.unshift(X(t).toFixed(1) + ',' + Y(q.x - K * Z * q.sm).toFixed(1));
       mid.push(X(t).toFixed(1) + ',' + Y(q.x).toFixed(1)); }
-    sv(svg, 'polygon', { points: up.concat(lo).join(' '), fill: '#99004C', 'fill-opacity': 0.14 });
-    sv(svg, 'polygon', { points: cu.concat(cl).join(' '), fill: '#99004C', 'fill-opacity': 0.35 });
-    sv(svg, 'polyline', { points: mid.join(' '), fill: 'none', stroke: '#99004C', 'stroke-width': 2 });
+    if (ident) {
+      sv(svg, 'polygon', { points: up.concat(lo).join(' '), fill: '#99004C', 'fill-opacity': 0.14 });
+      sv(svg, 'polygon', { points: cu.concat(cl).join(' '), fill: '#99004C', 'fill-opacity': 0.35 });
+    }
+    sv(svg, 'polyline', { points: mid.join(' '), fill: 'none', stroke: '#99004C', 'stroke-width': 2, 'stroke-dasharray': ident ? '' : '6 5' });
     d.t.forEach(function (t, k) { sv(svg, 'circle', { cx: X(t), cy: Y(d.x[k]), r: 3, fill: '#24313D' }); });
     sv(svg, 'line', { x1: X(tp), y1: Y1 + 20, x2: X(tp), y2: Y0, stroke: '#24313D', 'stroke-dasharray': '4 4' });
-    sv(svg, 'text', { x: X1, y: Y0 - 8, 'text-anchor': 'end', 'font-size': 11.5, fill: '#6A626B' }, 'bands drawn 10 times wider');
+    sv(svg, 'text', { x: X1, y: Y0 - 8, 'text-anchor': 'end', 'font-size': 11.5, fill: ident ? '#6A626B' : '#B3261E', 'font-weight': ident ? 400 : 600 },
+       ident ? 'bands drawn 10 times wider' : 'fit not identified: no bands drawn');
     sv(svg, 'rect', { x: X1 - 230, y: Y0 - 62, width: 22, height: 10, fill: '#99004C', 'fill-opacity': 0.35 });
     sv(svg, 'text', { x: X1 - 202, y: Y0 - 53, 'font-size': 11.5, fill: '#24313D' }, '95% confidence band (the mean)');
     sv(svg, 'rect', { x: X1 - 230, y: Y0 - 44, width: 22, height: 10, fill: '#99004C', 'fill-opacity': 0.14 });
@@ -295,9 +302,14 @@
     var sB = Math.sqrt(F.cov[0][0]), sA = Math.sqrt(F.cov[1][1]), corr = F.cov[0][1] / (sB * sA);
     var inside = tp >= 30 && tp <= d.tl;
     $('statsBand').innerHTML = 'B = <b class="mono">' + f(F.B, 1) + ' ± ' + f(sB, 1) + '</b> nm²/min · B/A = <b class="mono">' + f(F.BA, 4) + ' ± ' + f(sA, 4) + '</b> nm/min · correlation <b class="mono">' + f(corr, 2) + '</b> · χ² <b class="mono">' + f(F.chi2, 1) + '</b> for ' + F.dof + '<br>' +
-      'At ' + tp + ' min: <b class="mono">' + f(P.x, 2) + ' nm</b> · confidence ± <b class="mono">' + f(Z * P.sm, 2) + '</b> · prediction ± <b class="mono">' + f(Z * P.sp, 2) + '</b> nm · ' + (inside ? 'inside' : '<b>outside</b>') + ' the calibrated range';
+      'At ' + tp + ' min: <b class="mono">' + f(P.x, 2) + ' nm</b> · ' + (ident ? 'confidence ± <b class="mono">' + f(Z * P.sm, 2) + '</b> · prediction ± <b class="mono">' + f(Z * P.sp, 2) + '</b> nm' : '<b>no reliable bands</b>') + ' · ' + (inside ? 'inside' : '<b>outside</b>') + ' the calibrated range';
     var m = $('msgBand');
-    if (!inside && tp > d.tl) {
+    if (!ident) {
+      m.className = 'note bad';
+      m.textContent = 'Fit not sufficiently identified: these runs do not pin down B and B/A (the larger relative uncertainty is ' + (isFinite(rel) ? f(100 * rel, 0) + ' %' : 'not finite') +
+        '). Bands from the covariance rest on a local approximation and are not reliable 95 % intervals for such a fit, so none are drawn. With runs only up to ' + d.tl + ' min and σ = ' + f(d.sig, 1) +
+        ' nm, the data cannot tell the linear and parabolic constants apart. Lengthen the longest run, add runs or lower σ: a calibration must be designed so that its constants are identified.';
+    } else if (!inside && tp > d.tl) {
       m.className = 'note warn';
       m.textContent = 'Extrapolation: ' + tp + ' min is beyond the longest run (' + d.tl + ' min). The confidence band is ' + f(Z * P.sm, 2) + ' nm here, against ' + f(Z * pred(F, (30 + d.tl) / 2, d.sig).sm, 2) + ' nm in the middle of the range, and it still assumes the model holds out here, which no run has tested.';
     } else if (!inside) {
