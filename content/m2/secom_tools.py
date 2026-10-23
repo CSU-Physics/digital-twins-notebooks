@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 
 DATA = Path(__file__).resolve().parent / "data"
 TRAIN_FRACTION = 0.7
@@ -85,11 +85,14 @@ def screening_pipeline(keep_function, score_function=None, k=20):
 
     Called with one function, screening_pipeline(score_function, k=20), as in notebooks older than version 2026-10-25, it
     returns the pipeline of secom_tools 1.0.0 (fill in, scale, keep the k best by the score, classify), so a saved older
-    notebook still runs and gives the result it gave before."""
+    notebook still runs and gives the result it gave before, and prints a note asking the learner to open the new version."""
     from sklearn.base import BaseEstimator, TransformerMixin
     steps, make_pipeline = _classifier()
     if score_function is None:
         from sklearn.feature_selection import SelectKBest
+        print("Note: this notebook is older than version 2026-10-25. It still runs, but its Step 9 screens the columns once,\n"
+              "before cross-validation, instead of inside every fold as the course now teaches. On the lab page in Canvas,\n"
+              "follow \"Coming back to this lab? Check the version first\" to open the new version; your work is kept.")
         old_score_function = keep_function
 
         def score(A, b):
