@@ -176,6 +176,7 @@ The first time, Python can take up to a minute to start. The cell prints the ver
         code(f"""import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy             # the course files use SciPy: importing it here loads it in the browser
 import furnace, oxide_tools, r2r_tools, capstone, process_twin
 from oxide_tools import predict
 from capstone import mae_ci, blank_datasheet, show_options, show_datasheet
@@ -305,6 +306,7 @@ else:
     ] + datasheet_cells("process", quiz) + [
         code(f'''# The course's check code is in dt_m7_check.py, next to this notebook.
 # It is kept out of the notebook so that the course's reference solutions are not on screen.
+import scipy, sklearn     # the check code uses SciPy and scikit-learn: importing them here loads them in the browser
 from dt_m7_check import check_process_twin
 
 passed, messages, value = check_process_twin(predict_next, offset_observation, verdict, datasheet, KEY)
@@ -349,6 +351,7 @@ The first time, Python can take up to a minute to start, and loading scikit-lear
         code(f"""import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy             # the course files use SciPy: importing it here loads it in the browser
 import sklearn
 import furnace, vm_tools, capstone, metrology_twin
 from vm_tools import FEATURES, physics_prediction
@@ -466,6 +469,7 @@ else:
     ] + datasheet_cells("metrology", quiz) + [
         code(f'''# The course's check code is in dt_m7_check.py, next to this notebook.
 # It is kept out of the notebook so that the course's reference solutions are not on screen.
+import scipy, sklearn     # the check code uses SciPy and scikit-learn: importing them here loads them in the browser
 from dt_m7_check import check_metrology_twin
 
 passed, messages, value = check_metrology_twin(vm_predict, offset_observation, verdict, datasheet, KEY)
@@ -511,6 +515,7 @@ The first time, Python can take up to a minute to start. The cell prints the ver
         code(f"""import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy             # the course files use SciPy: importing it here loads it in the browser
 import line, capstone, toolset_twin
 from capstone import mae_ci, blank_datasheet, show_options, show_datasheet
 from toolset_twin import (fab_log, downtime_log, twin_config, twin_run, weekly_cycle_time, replay, plot_weeks, week_window,
@@ -640,6 +645,7 @@ else:
     ] + datasheet_cells("toolset", quiz) + [
         code(f'''# The course's check code is in dt_m7_check.py, next to this notebook.
 # It is kept out of the notebook so that the course's reference solutions are not on screen.
+import scipy, sklearn     # the check code uses SciPy and scikit-learn: importing them here loads them in the browser
 from dt_m7_check import check_toolset_twin
 
 passed, messages, value = check_toolset_twin(twin_estimates, verdict, datasheet, KEY)
